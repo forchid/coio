@@ -19,7 +19,6 @@ package io.co.nio;
 import io.co.CoIOException;
 import io.co.CoInputStream;
 import io.co.CoOutputStream;
-import io.co.CoScheduler;
 import io.co.CoSocket;
 import io.co.util.IoUtils;
 
@@ -42,46 +41,17 @@ public class NioCoSocket extends CoSocket {
     final SocketChannel channel;
     final CoInputStream in;
     final CoOutputStream out;
-    final Selector selector;
     
-    public NioCoSocket(Coroutine coConnector, Selector selector, SocketChannel channel, 
-            CoScheduler coScheduler) {
+    public NioCoSocket(Coroutine coConnector, SocketChannel channel, NioCoScheduler coScheduler) {
         super(coConnector, coScheduler);
         this.channel = channel;
+        coScheduler.initialize();
+        final Selector selector = coScheduler.selector;
         this.in = new NioCoInputStream(this, this.channel, selector);
         this.out= new NioCoOutputStream(this, this.channel,selector);
-        this.selector = null;
     }
     
-    public NioCoSocket(Coroutine coConnector) {
-        super(coConnector, new NioCoScheduler());
-        
-        SocketChannel chan = null;
-        boolean failed = true;
-        try {
-            final NioCoScheduler scheduler = (NioCoScheduler)super.getCoScheduler();
-            this.selector = scheduler.selector = Selector.open();
-            chan = SocketChannel.open();
-            chan.configureBlocking(false);
-            this.channel = chan;
-            this.in = new NioCoInputStream(this, this.channel, this.selector);
-            this.out= new NioCoOutputStream(this, this.channel,this.selector);
-            failed = false;
-        } catch (final IOException cause) {
-            throw new CoIOException(cause);
-        } finally {
-            if(failed){
-                IoUtils.close(chan);
-                IoUtils.close(this.selector);
-            }
-        }
-    }
-    
-    public NioCoSocket(Coroutine coConnector, Selector selector){
-        this(coConnector, selector, new NioCoScheduler());
-    }
-    
-    public NioCoSocket(Coroutine coConnector, Selector selector, CoScheduler coScheduler) {
+    public NioCoSocket(Coroutine coConnector, NioCoScheduler coScheduler) {
         super(coConnector, coScheduler);
         
         SocketChannel chan = null;
@@ -90,9 +60,10 @@ public class NioCoSocket extends CoSocket {
             chan = SocketChannel.open();
             chan.configureBlocking(false);
             this.channel = chan;
+            coScheduler.initialize();
+            final Selector selector = coScheduler.selector;
             this.in = new NioCoInputStream(this, this.channel, selector);
             this.out= new NioCoOutputStream(this, this.channel,selector);
-            this.selector = null;
             failed = false;
         } catch (final IOException cause) {
             throw new CoIOException(cause);
@@ -113,7 +84,6 @@ public class NioCoSocket extends CoSocket {
         IoUtils.close(getInputStream());
         IoUtils.close(getOutputStream());
         this.coScheduler.close(this);
-        IoUtils.close(this.selector);
     }
 
     @Override
@@ -124,10 +94,6 @@ public class NioCoSocket extends CoSocket {
     @Override
     public void connect(SocketAddress endpoint, int timeout) throws IOException {
         this.coScheduler.connect(this, endpoint, timeout);
-        // Boot itself
-        if(this.selector != null){
-            this.coScheduler.start();
-        }
     }
 
     @Override
@@ -138,6 +104,31 @@ public class NioCoSocket extends CoSocket {
     @Override
     public CoOutputStream getOutputStream() {
         return this.out;
+    }
+    
+    public static void start(Coroutine coConnector, SocketAddress remote) throws CoIOException {
+        start(coConnector, remote, 0);
+    }
+    
+    public static void start(Coroutine coConnector, SocketAddress remote, int timeout)
+            throws CoIOException {
+        final NioCoScheduler scheduler = new NioCoScheduler();
+        NioCoSocket socket = null;
+        boolean failed = true;
+        try {
+            socket = new NioCoSocket(coConnector, scheduler);
+            socket.connect(remote, timeout);
+            // Boot itself
+            scheduler.start();
+            failed = false;
+        } catch(final IOException cause){
+            throw new CoIOException(cause);
+        } finally {
+            if(failed){
+                IoUtils.close(socket);
+                scheduler.shutdown();
+            }
+        }
     }
 
 }

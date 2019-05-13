@@ -18,6 +18,7 @@ package io.co.nio;
 
 import java.io.IOException;
 import java.net.SocketAddress;
+import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -89,9 +90,13 @@ public class NioCoScheduler implements CoScheduler {
                 }
                 
                 // Do selection
-                final int n = selector.select();
-                if(n == 0){
-                    continue;
+                try {
+                    if(selector.select() == 0){
+                        continue;
+                    }
+                } catch(final ClosedSelectorException cause){
+                    this.stop();
+                    break;
                 }
                 final Set<SelectionKey> selKeys = selector.selectedKeys();
                 for(Iterator<SelectionKey> i = selKeys.iterator(); i.hasNext(); i.remove()){
@@ -175,8 +180,7 @@ public class NioCoScheduler implements CoScheduler {
             chan.configureBlocking(false);
             // 1. Create coSocket
             final Coroutine coConnector = cosSocket.getCoConnector();
-            final CoScheduler coScheduler = cosSocket.getCoScheduler();
-            coSocket = new NioCoSocket(coConnector, this.selector, chan, coScheduler){
+            coSocket = new NioCoSocket(coConnector, chan, this){
                 @Override
                 public void connect(SocketAddress endpoint) throws IOException {
                     // NOOP
@@ -214,6 +218,8 @@ public class NioCoScheduler implements CoScheduler {
     public CoSocket accept(Continuation co, CoServerSocket coServerSocket)
         throws CoIOException {
         try {
+            this.initialize();
+            
             final CoRunnerChannel corChan= this.chans.get(coServerSocket);
             final SelectableChannel chan = (SelectableChannel)corChan.channel;
             chan.register(this.selector, SelectionKey.OP_ACCEPT, coServerSocket);
@@ -249,9 +255,10 @@ public class NioCoScheduler implements CoScheduler {
         final SocketChannel chan = nioSocket.channel;
         boolean failed = true;
         try {
+            chan.register(this.selector, SelectionKey.OP_CONNECT, coSocket);
             final Coroutine connector = coSocket.getCoConnector();
             this.chans.put(nioSocket, new CoRunnerChannel(connector, chan));
-            nioSocket.channel.connect(endpoint);
+            chan.connect(endpoint);
             failed = false;
         } finally {
             if(failed){
@@ -278,8 +285,13 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     @Override
+    public boolean isShutdown() {
+        return this.shutdown;
+    }
+    
+    @Override
     public boolean isStopped(){
         return this.stopped;
     }
-
+    
 }

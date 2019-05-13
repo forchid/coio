@@ -30,6 +30,9 @@ import com.offbynull.coroutines.user.Coroutine;
  *
  */
 public abstract class CoServerSocket implements CoChannel {
+    
+    protected static final int BACKLOG_DEFAULT = 150;
+    
     protected final Coroutine coAcceptor;
     protected final Coroutine coConnector;
     
@@ -57,7 +60,7 @@ public abstract class CoServerSocket implements CoChannel {
     public abstract boolean isOpen();
     
     public void bind(SocketAddress endpoint) throws IOException {
-        bind(endpoint, 150);
+        bind(endpoint, BACKLOG_DEFAULT);
     }
     
     public void bind(SocketAddress endpoint, int backlog) throws IOException {

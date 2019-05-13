@@ -45,5 +45,7 @@ public interface CoScheduler {
     
     boolean isStopped();
     
+    boolean isShutdown();
+    
     void shutdown();
 }
