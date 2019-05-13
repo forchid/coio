@@ -18,34 +18,18 @@ package io.co;
 
 import java.io.Closeable;
 
-import com.offbynull.coroutines.user.Continuation;
-
 /**
- * An output stream based on coroutines.
+ * A channel based on coroutines.
  * 
  * @author little-pan
- * @since 2019-05-12
+ * @since 2019-05-13
  *
  */
-public abstract class CoOutputStream implements Closeable {
+public interface CoChannel extends Closeable {
     
-    protected final static int BUFFER_SIZE = Integer.getInteger("io.co.outBuffer.size", 1<<16);
-    
-    public abstract void write(Continuation co, int b) throws CoIOException;
-    
-    public void write(Continuation co, byte[] b) throws CoIOException {
-        write(co, b, 0, b.length);
-    }
-    
-    public void write(Continuation co, byte[] b, int off, int len) throws CoIOException {
-        for(;off < len;) {
-            write(co, b[off++]);
-        }
-    }
-    
-    public abstract void flush(Continuation co) throws CoIOException;
+    boolean isOpen();
     
     @Override
-    public abstract void close();
+    void close();
 
 }

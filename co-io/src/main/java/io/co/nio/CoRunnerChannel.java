@@ -14,29 +14,28 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library.
  */
-package io.co;
+package io.co.nio;
+
+import java.nio.channels.Channel;
+
+import com.offbynull.coroutines.user.Coroutine;
+import com.offbynull.coroutines.user.CoroutineRunner;
 
 /**
- * The coroutine IO exception, also a runtime exception.
+ * A channel wrapper with coroutine runner.
  * 
  * @author little-pan
- * @since 2019-05-12
+ * @since 2019-05-13日
  *
  */
-public class CoIOException extends RuntimeException {
+class CoRunnerChannel {
     
-    private static final long serialVersionUID = -6895725371130489332L;
-
-    public CoIOException(String message) {
-        super(message);
-    }
+    final CoroutineRunner coRunner;
+    final Channel channel;
     
-    public CoIOException(Throwable cause) {
-        super(cause);
-    }
-    
-    public CoIOException(String message, Throwable cause) {
-        super(message, cause);
+    CoRunnerChannel(Coroutine co, Channel channel){
+        this.coRunner = new CoroutineRunner(co);
+        this.channel  = channel;
     }
 
 }

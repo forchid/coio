@@ -19,39 +19,31 @@ package io.co;
 import java.io.IOException;
 import java.net.SocketAddress;
 
-import com.offbynull.coroutines.user.Coroutine;
+import com.offbynull.coroutines.user.Continuation;
 
 /**
- * A socket based on coroutines.
+ * The coroutine scheduler.
  * 
  * @author little-pan
- * @since 2019-05-12
+ * @since 2019-05-13
  *
  */
-public abstract class CoSocket implements CoChannel {
+public interface CoScheduler {
     
-    protected final Coroutine coConnector;
-    protected final CoScheduler coScheduler;
+    void start();
     
-    protected CoSocket(Coroutine coConnector, CoScheduler coScheduler) {
-        this.coConnector = coConnector;
-        this.coScheduler = coScheduler;
-    }
+    CoSocket accept(Continuation co, CoServerSocket coServerSocket)
+        throws CoIOException;
     
-    public Coroutine getCoConnector(){
-        return this.coConnector;
-    }
+    void bind(CoServerSocket coServerSocket, SocketAddress endpoint, int backlog)
+        throws IOException;
     
-    public CoScheduler getCoScheduler(){
-        return this.coScheduler;
-    }
+    void connect(CoSocket coSocket, SocketAddress endpoint, int timeout)
+        throws IOException;
     
-    public abstract void connect(SocketAddress endpoint) throws IOException;
+    void close(CoChannel coChannel);
     
-    public abstract void connect(SocketAddress endpoint, int timeout) throws IOException;
+    boolean isStopped();
     
-    public abstract CoInputStream getInputStream();
-    
-    public abstract CoOutputStream getOutputStream();
-    
+    void shutdown();
 }

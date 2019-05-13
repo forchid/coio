@@ -16,6 +16,9 @@
  */
 package io.co;
 
+import java.io.IOException;
+import java.net.SocketAddress;
+
 import com.offbynull.coroutines.user.Continuation;
 import com.offbynull.coroutines.user.Coroutine;
 
@@ -26,19 +29,49 @@ import com.offbynull.coroutines.user.Coroutine;
  * @since 2019-05-12
  *
  */
-public abstract class CoServerSocket implements AutoCloseable {
-    protected Coroutine coroutine;
+public abstract class CoServerSocket implements CoChannel {
+    protected final Coroutine coAcceptor;
+    protected final Coroutine coConnector;
     
-    protected CoServerSocket(Coroutine coroutine) {
-        this.coroutine = coroutine;
+    protected final CoScheduler coScheduler;
+    
+    protected CoServerSocket(Coroutine coAcceptor, Coroutine coConnector, CoScheduler coScheduler) {
+        this.coAcceptor = coAcceptor;
+        this.coConnector= coConnector;
+        this.coScheduler= coScheduler;
     }
-
-    public abstract boolean isClosed();
     
-    public abstract CoSocket accept(Continuation co);
+    public Coroutine getCoAcceptor(){
+        return this.coAcceptor;
+    }
+    
+    public Coroutine getCoConnector(){
+        return this.coConnector;
+    }
+    
+    public CoScheduler getCoScheduler(){
+        return this.coScheduler;
+    }
+    
+    @Override
+    public abstract boolean isOpen();
+    
+    public void bind(SocketAddress endpoint) throws IOException {
+        bind(endpoint, 150);
+    }
+    
+    public void bind(SocketAddress endpoint, int backlog) throws IOException {
+        this.coScheduler.bind(this, endpoint, backlog);
+    }
+    
+    public CoSocket accept(Continuation co) {
+        return this.coScheduler.accept(co, this);
+    }
  
     @Override
-    public abstract void close();
+    public void close(){
+        this.coScheduler.close(this);
+    }
     
 }
 
