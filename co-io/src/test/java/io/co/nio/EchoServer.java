@@ -16,6 +16,7 @@
  */
 package io.co.nio;
 
+import io.co.CoInputStream;
 import io.co.CoSocket;
 
 import java.net.InetSocketAddress;
@@ -43,9 +44,19 @@ public class EchoServer {
             public void run(Continuation co) throws Exception {
                 final CoSocket sock = (CoSocket)co.getContext();
                 System.out.println("Connected: " + sock);
+                
+                final CoInputStream in = sock.getInputStream();
+                final byte[] buf = new byte[1024];
+                int i = in.read(co, buf);
+                sock.getOutputStream().write(co, buf, 0, i);
+                
+                sock.close();
+                sock.getCoScheduler().shutdown();
             }
             
         }, endpoint);
+        
+        System.out.println("Bye");
     }
 
 }

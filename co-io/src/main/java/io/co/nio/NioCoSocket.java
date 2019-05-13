@@ -106,6 +106,11 @@ public class NioCoSocket extends CoSocket {
         return this.out;
     }
     
+    @Override
+    public String toString(){
+        return this.channel + "";
+    }
+    
     public static void start(Coroutine coConnector, SocketAddress remote) throws CoIOException {
         start(coConnector, remote, 0);
     }
