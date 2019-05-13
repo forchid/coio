@@ -77,6 +77,7 @@ public class NioCoOutputStream extends CoOutputStream {
                     co.suspend();
                 }
             }
+            buf.clear();
         }catch(final IOException cause){
             throw new CoIOException(cause);
         }finally{

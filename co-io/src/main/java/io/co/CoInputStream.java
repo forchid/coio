@@ -42,12 +42,16 @@ public abstract class CoInputStream implements Closeable {
     }
     
     public int read(Continuation co, byte[] b, int off, int len) throws CoIOException {
+        int c = read(co);
+        if(c == -1) {
+            return -1;
+        }
         int i = 0;
-        for(; i < len; ) {
-            final int c = read(co);
-            if(c == -1) {
-                break;
-            }
+        b[off++] = (byte)c;
+        ++i;
+        final int n = Math.min(len - 1, available(co));
+        for(int j = 0 ; j < n; ++j) {
+            c = read(co);
             b[off++] = (byte)c;
             ++i;
         }
@@ -58,9 +62,9 @@ public abstract class CoInputStream implements Closeable {
         final byte[] buff = new byte[8192];
         final int len = (int)Math.min(buff.length, n);
         long i = 0L;
-        for(; i < n;) {
+        for(; i < len;) {
             final int m = read(co, buff, 0, len);
-            if(m == 0) {
+            if(m == -1) {
                 break;
             }
             i += m;

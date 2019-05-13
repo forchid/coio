@@ -115,7 +115,7 @@ public class NioCoScheduler implements CoScheduler {
                     if(key.isReadable()){
                         doRead(key);
                     }
-                    if(key.isWritable()){
+                    if(key.isValid() && key.isWritable()){
                         doWrite(key);
                     }
                 }

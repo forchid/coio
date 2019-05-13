@@ -50,6 +50,24 @@ public class NioCoInputStream extends CoInputStream {
         this.channel = channel;
         this.selector= selector;
         this.buffer  = ByteBuffer.allocate(bufferSize);
+        this.buffer.flip();
+    }
+    
+    public int available(Continuation co) throws CoIOException {
+        final ByteBuffer buf = this.buffer;
+        if(buf.hasRemaining()) {
+            return buf.remaining();
+        }
+        
+        try {
+            buf.clear();
+            this.channel.read(buf);
+            buf.flip();
+            return buf.remaining();
+        } catch (final IOException cause) {
+            throw new CoIOException(cause);
+        }
+        
     }
     
     @Override
@@ -65,16 +83,15 @@ public class NioCoInputStream extends CoInputStream {
             buf.clear();
             for(;;){
                 final int n = chan.read(buf);
-                switch(n){
-                case -1:
+                if(n == -1) {
                     return -1;
-                case 0:
+                }
+                if(n == 0) {
                     co.suspend();
                     continue;
-                default:
-                    buf.flip();
-                    return buf.get();
                 }
+                buf.flip();
+                return buf.get();
             }
         } catch (final IOException cause){
             throw new CoIOException(cause);
