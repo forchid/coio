@@ -12,7 +12,7 @@
   <url>http://maven.apache.org</url>
 
   <properties>
-    <javaVersion>1.7</javaVersion>
+    <javaVersion>1.8</javaVersion>
     <coroutinesVersion>1.4.2</coroutinesVersion>
     <maven.compiler.source>${javaVersion}</maven.compiler.source>
     <maven.compiler.target>${javaVersion}</maven.compiler.target>
@@ -37,6 +37,12 @@
     <dependency>
       <groupId>com.offbynull.coroutines</groupId>
       <artifactId>instrumenter</artifactId>
+      <version>${coroutinesVersion}</version>
+    </dependency>
+    
+    <dependency>
+      <groupId>com.offbynull.coroutines</groupId>
+      <artifactId>java-agent</artifactId>
       <version>${coroutinesVersion}</version>
     </dependency>
     

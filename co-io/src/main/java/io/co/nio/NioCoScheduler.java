@@ -241,6 +241,8 @@ public class NioCoScheduler implements CoScheduler {
             final Coroutine coAcceptor = coServerSocket.getCoAcceptor();
             final CoRunnerChannel corChan = new CoRunnerChannel(coAcceptor, ssChan);
             chans.put(coServerSocket, corChan);
+            corChan.coRunner.setContext(nioSocket);
+            corChan.coRunner.execute();
             failed = false;
         } finally {
             if(failed){
