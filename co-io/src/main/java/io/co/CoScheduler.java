@@ -49,6 +49,12 @@ public interface CoScheduler {
     void connect(CoSocket coSocket, SocketAddress remote, int timeout)
         throws IOException;
     
+    void schedule(TimeRunner timeRunner);
+    
+    void schedule(CoSocket coSocket, Runnable task, long delay);
+    
+    void schedule(CoSocket coSocket, Runnable task, long delay, long period);
+    
     void close(CoChannel coChannel);
     
     boolean isStopped();

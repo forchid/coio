@@ -77,8 +77,8 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
     
     @Override
     public void close(){
-        super.close();
         IoUtils.close(this.channel);
+        super.close();
     }
     
     public static void start(Coroutine coConnector, SocketAddress endpoint)throws CoIOException {

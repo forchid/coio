@@ -96,10 +96,10 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     
     @Override
     public void close(){
-        super.close();
         IoUtils.close(getInputStream());
         IoUtils.close(getOutputStream());
         IoUtils.close(this.channel);
+        super.close();
     }
 
     @Override

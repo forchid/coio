@@ -48,7 +48,7 @@ public class EchoClient {
             for(int i = 0; i < conns; ++i){
                 final Coroutine connector = new Connector(i, success);
                 final CoSocket sock = new NioCoSocket(connector, scheduler);
-                sock.connect(remote);
+                sock.connect(remote, 6000);
                 if(i % 100 == 0){
                     Thread.sleep(100L);
                 }
@@ -78,6 +78,8 @@ public class EchoClient {
             final Object ctx = co.getContext();
             if(ctx instanceof Throwable){
                 // Connect fail
+                final Throwable cause = (Throwable)ctx;
+                cause.printStackTrace();
                 return;
             }
             final CoSocket sock = (CoSocket)ctx;
