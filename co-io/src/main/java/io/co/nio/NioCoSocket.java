@@ -20,6 +20,7 @@ import io.co.CoIOException;
 import io.co.CoInputStream;
 import io.co.CoOutputStream;
 import io.co.CoSocket;
+import io.co.TimeRunner;
 import io.co.util.IoUtils;
 
 import java.io.IOException;
@@ -42,6 +43,8 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     final CoInputStream in;
     final CoOutputStream out;
     final int id;
+    
+    TimeRunner connectionTimer;
     
     public NioCoSocket(Coroutine coConnector, SocketChannel channel, NioCoScheduler coScheduler) {
         super(coConnector, coScheduler);
@@ -152,4 +155,11 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
         }
     }
 
+    void cancelConnetionTimer() {
+        if(this.connectionTimer != null){
+            this.connectionTimer.cancel();
+            this.connectionTimer = null;
+        }
+    }
+    
 }

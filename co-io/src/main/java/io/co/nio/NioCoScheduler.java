@@ -140,7 +140,9 @@ public class NioCoScheduler implements CoScheduler {
             chan.connect(remote);
             if(timeout > 0){
                 final long runat = System.currentTimeMillis() + timeout;
-                this.schedule(new NioConnectionTimer(this, socket, runat));
+                NioConnectionTimer connTimer = new NioConnectionTimer(this, socket, runat);
+                socket.connectionTimer = connTimer;
+                this.schedule(connTimer);
             }
             failed = false;
         } finally {
@@ -428,7 +430,7 @@ public class NioCoScheduler implements CoScheduler {
     
     protected void doConnect(final SelectionKey key) {
         final SocketChannel chan = (SocketChannel)key.channel();
-        final NioCoChannel<?> socket = (NioCoChannel<?>)key.attachment();
+        final NioCoSocket socket = (NioCoSocket)key.attachment();
         boolean failed = true;
         try {
             final CoRunnerChannel corChan = runnerChannel(socket);
@@ -436,6 +438,7 @@ public class NioCoScheduler implements CoScheduler {
                 // Had closed when timeout etc
                 return;
             }
+            socket.cancelConnetionTimer();
             final CoroutineRunner coRunner = corChan.coRunner;
             try {
                 chan.finishConnect();

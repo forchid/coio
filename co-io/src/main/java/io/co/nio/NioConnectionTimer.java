@@ -34,6 +34,10 @@ public class NioConnectionTimer extends TimeRunner {
     
     @Override
     public void run() {
+        if(this.isCanceled()){
+            return;
+        }
+        
         final NioCoScheduler scheduler = (NioCoScheduler)this.scheduler;
         final NioCoSocket source = (NioCoSocket)source();
         final CoRunnerChannel corChan = scheduler.runnerChannel(source);
@@ -44,6 +48,7 @@ public class NioConnectionTimer extends TimeRunner {
         corChan.coRunner.setContext(new SocketTimeoutException("Connect timeout"));
         scheduler.execute(corChan.coRunner, source);
         IoUtils.close(source);
+        source.cancelConnetionTimer();
     }
     
 }
