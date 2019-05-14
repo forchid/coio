@@ -44,6 +44,8 @@ import io.co.util.IoUtils;
 public class NioCoScheduler implements CoScheduler {
     
     private CoRunnerChannel[] chans;
+    private int maxSlot;
+    
     protected volatile Selector selector;
     protected volatile boolean shutdown;
     protected volatile boolean stopped;
@@ -129,7 +131,11 @@ public class NioCoScheduler implements CoScheduler {
         final NioCoChannel<?> chan = (NioCoChannel<?>)coChannel;
         final CoRunnerChannel corChan = runnerChannel(chan);
         if(corChan != null && corChan.coChannel == chan) {
-            this.chans[chan.id()] = null;
+            final int slot   = chan.id();
+            this.chans[slot] = null;
+            if(slot == this.maxSlot - 1){
+                this.maxSlot--;
+            }
         }
     }
     
@@ -153,13 +159,13 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     CoRunnerChannel register(final NioCoChannel<?> coChannel, final Coroutine co){
-        final int slotId = coChannel.id();
-        final CoRunnerChannel oldChan = this.chans[slotId];
+        final int slot = coChannel.id();
+        final CoRunnerChannel oldChan = this.chans[slot];
         if(oldChan != null && oldChan.coChannel.isOpen()){
-            throw new IllegalStateException(String.format("Channel slot %s used", slotId));
+            throw new IllegalStateException(String.format("Channel slot %s used", slot));
         }
         final CoRunnerChannel newChan = new CoRunnerChannel(co, coChannel);
-        this.chans[slotId] = newChan;
+        this.chans[slot] = newChan;
         return newChan;
     }
     
@@ -174,17 +180,25 @@ public class NioCoScheduler implements CoScheduler {
     int nextSlot() {
         final CoRunnerChannel[] chans = this.chans;
         final int n = chans.length;
+        
+        // quick allocate
+        if(this.maxSlot < n){
+            return this.maxSlot++;
+        }
+        
+        // traverse
         for(int i = 0; i < n; ++i){
             final CoRunnerChannel corChan = chans[i];
             if(corChan == null || !corChan.coChannel.isOpen()){
                 return i;
             }
         }
+        
         // expand
         final CoRunnerChannel[] newChans = new CoRunnerChannel[n << 1];
         System.arraycopy(chans, 0, newChans, 0, n);
         this.chans = newChans;
-        return n;
+        return this.maxSlot++;
     }
     
     protected void initialize() throws CoIOException {
