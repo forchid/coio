@@ -42,10 +42,12 @@ public class EchoClient {
         final SocketAddress remote = new InetSocketAddress("localhost", 9999);
         
         final NioCoScheduler scheduler = new NioCoScheduler();
+        final int conns = 2000;
+        final MutableInteger success = new MutableInteger();
         try {
-            final int conns = 2000;
+            
             for(int i = 0; i < conns; ++i){
-                final Coroutine connector = new Connector(i);
+                final Coroutine connector = new Connector(i, success);
                 final CoSocket sock = new NioCoSocket(connector, scheduler);
                 sock.connect(remote);
             }
@@ -54,15 +56,17 @@ public class EchoClient {
             scheduler.shutdown();
         }
         
-        System.out.println("Bye");
+        System.out.println(String.format("Bye: conns = %s, success = %s", conns, success));
     }
     
     static class Connector implements Coroutine {
         private static final long serialVersionUID = 1L;
         
+        final MutableInteger success;
         final int id;
         
-        Connector(int id){
+        Connector(int id, final MutableInteger success){
+            this.success = success;
             this.id = id;
         }
 
@@ -102,12 +106,29 @@ public class EchoClient {
                     break;
                 }
             }
+            success.value++;
             System.out.println(String.format("Client-%05d: time %dms", id, (System.currentTimeMillis() - ts)));
             
             sock.close();
             sock.getCoScheduler().shutdown();
         }
         
+    }
+    
+    static class MutableInteger {
+        int value;
+        
+        MutableInteger(){
+            this(0);
+        }
+        
+        MutableInteger(int value){
+            this.value = value;
+        }
+        
+        public String toString(){
+            return value + "";
+        }
     }
 
 }

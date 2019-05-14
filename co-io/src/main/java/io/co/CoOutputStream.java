@@ -29,7 +29,7 @@ import com.offbynull.coroutines.user.Continuation;
  */
 public abstract class CoOutputStream implements Closeable {
     
-    protected final static int BUFFER_SIZE = Integer.getInteger("io.co.outBuffer.size", 1<<16);
+    protected final static int BUFFER_SIZE = Integer.getInteger("io.co.outBuffer.size", 4096);
     
     public abstract void write(Continuation co, int b) throws CoIOException;
     

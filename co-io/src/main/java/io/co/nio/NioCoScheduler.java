@@ -45,7 +45,7 @@ import io.co.util.IoUtils;
 public class NioCoScheduler implements CoScheduler {
     
     private final Map<CoChannel, CoRunnerChannel> chans;
-    protected Selector selector;
+    protected volatile Selector selector;
     protected volatile boolean shutdown;
     protected volatile boolean stopped;
     
@@ -315,6 +315,10 @@ public class NioCoScheduler implements CoScheduler {
     
     @Override
     public void shutdown() {
+        final Selector sel = this.selector;
+        if(sel != null){
+            sel.wakeup();
+        }
         this.shutdown = true;
     }
     
