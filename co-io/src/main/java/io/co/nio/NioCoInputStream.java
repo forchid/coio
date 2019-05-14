@@ -73,7 +73,6 @@ public class NioCoInputStream extends CoInputStream {
         } catch (final IOException cause) {
             throw new CoIOException(cause);
         }
-        
     }
     
     @Override
