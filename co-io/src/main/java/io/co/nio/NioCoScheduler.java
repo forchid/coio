@@ -44,6 +44,7 @@ import io.co.util.IoUtils;
 public class NioCoScheduler implements CoScheduler {
     
     private CoRunnerChannel[] chans;
+    private final int maxConnections;
     private int maxSlot;
     
     protected volatile Selector selector;
@@ -51,11 +52,26 @@ public class NioCoScheduler implements CoScheduler {
     protected volatile boolean stopped;
     
     public NioCoScheduler(){
-        this(1024);
+        this(INIT_CONNECTIONS, MAX_CONNECTIONS);
     }
     
     public NioCoScheduler(int initConnections){
+        this(initConnections, MAX_CONNECTIONS);
+    }
+    
+    public NioCoScheduler(int initConnections, int maxConnections){
+        if(initConnections < 0){
+            throw new IllegalArgumentException("initConnections " + initConnections);
+        }
+        if(maxConnections  < 2/* include server socket*/){
+            throw new IllegalArgumentException("maxConnections must bigger than 1: given " + maxConnections);
+        }
+        if(initConnections > maxConnections){
+            final String fmt = "initConnections %s bigger than maxConnections %s";
+            throw new IllegalArgumentException(String.format(fmt, initConnections, maxConnections));
+        }
         this.chans = new CoRunnerChannel[initConnections];
+        this.maxConnections = maxConnections;
     }
     
     @Override
@@ -177,7 +193,7 @@ public class NioCoScheduler implements CoScheduler {
         return corChan;
     }
     
-    int nextSlot() {
+    int nextSlot() throws CoIOException {
         final CoRunnerChannel[] chans = this.chans;
         final int n = chans.length;
         
@@ -194,8 +210,15 @@ public class NioCoScheduler implements CoScheduler {
             }
         }
         
+        // check limit
+        if(this.maxSlot >= this.maxConnections){
+            // Too many connections
+            throw new CoIOException("Too many connections: " + this.maxSlot);
+        }
+        
         // expand
-        final CoRunnerChannel[] newChans = new CoRunnerChannel[n << 1];
+        final int size = Math.min(this.maxConnections, n << 1);
+        final CoRunnerChannel[] newChans = new CoRunnerChannel[size];
         System.arraycopy(chans, 0, newChans, 0, n);
         this.chans = newChans;
         return this.maxSlot++;
@@ -250,27 +273,38 @@ public class NioCoScheduler implements CoScheduler {
                 }
                 final Set<SelectionKey> selKeys = selector.selectedKeys();
                 for(Iterator<SelectionKey> i = selKeys.iterator(); i.hasNext(); i.remove()){
-                    final SelectionKey key = i.next();
-                    if(!key.isValid()){
-                        continue;
-                    }
-                    if(key.isAcceptable()){
-                        doAccept(key);
-                        continue;
-                    }
-                    if(key.isConnectable()){
-                        doConnect(key);
-                        continue;
-                    }
-                    if(key.isReadable()){
-                        doRead(key);
-                    }
-                    if(key.isValid() && key.isWritable()){
-                        doWrite(key);
+                    NioCoChannel<?> coChan = null;
+                    boolean failed = false;
+                    try {
+                        final SelectionKey key = i.next();
+                        if(!key.isValid()){
+                            failed = true;
+                            continue;
+                        }
+                        coChan = (NioCoChannel<?>)key.attachment();
+                        if(key.isAcceptable()){
+                            doAccept(key);
+                            continue;
+                        }
+                        if(key.isConnectable()){
+                            doConnect(key);
+                            continue;
+                        }
+                        if(key.isReadable()){
+                            doRead(key);
+                        }
+                        if(key.isValid() && key.isWritable()){
+                            doWrite(key);
+                        }
+                    } catch (final CoroutineException e){
+                        failed = true;
+                        debug("Uncaught exception in coroutine", e.getCause());
+                    } finally {
+                        if(failed){
+                            IoUtils.close(coChan);
+                        }
                     }
                 }
-            } catch (final CoroutineException e){
-                debug("Uncaught exception in coroutine", e.getCause());
             } catch (final IOException cause){
                 this.stop();
                 throw new CoIOException("Scheduler fatal", cause);
@@ -370,6 +404,9 @@ public class NioCoScheduler implements CoScheduler {
                 // 1. Create coSocket
                 final Coroutine coConnector = cosSocket.getCoConnector();
                 coSocket = new PassiveNioCoSocket(coConnector, chan, this);
+            } catch (final CoIOException cause){
+                debug("Create accepted socket error", cause);
+                return;
             } finally {
                 // 2. Next accept
                 ssRunChan.coRunner.setContext(coSocket);

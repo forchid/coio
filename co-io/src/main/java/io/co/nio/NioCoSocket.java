@@ -147,8 +147,8 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
         } finally {
             if(failed){
                 IoUtils.close(socket);
-                scheduler.shutdown();
             }
+            scheduler.shutdown();
         }
     }
 

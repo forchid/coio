@@ -32,6 +32,9 @@ public interface CoScheduler {
     
     boolean DEBUG = Boolean.getBoolean("io.co.debug");
     
+    int INIT_CONNECTIONS = Integer.getInteger("io.co.initConnections", 1024);
+    int MAX_CONNECTIONS  = Integer.getInteger("io.co.maxConnections", 102400);
+    
     void start();
     
     CoSocket accept(Continuation co, CoServerSocket coServerSocket)

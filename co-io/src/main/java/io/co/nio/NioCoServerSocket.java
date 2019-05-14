@@ -116,6 +116,7 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
         try {
             ssSocket = new NioCoServerSocket(coAcceptor, coConnector, scheduler);
             ssSocket.bind(endpoint, backlog);
+            // Boot itself
             scheduler.start();
             failed = false;
         } catch(final IOException cause){
@@ -123,8 +124,8 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
         } finally {
             if(failed){
                 IoUtils.close(ssSocket);
-                scheduler.shutdown();
             }
+            scheduler.shutdown();
         }
     }
 
