@@ -19,16 +19,16 @@ package io.co.nio;
 import io.co.TimeRunner;
 import io.co.util.IoUtils;
 
-import java.net.SocketTimeoutException;
-
 /**
  * @author little-pan
  * @since 2019-05-14
  *
  */
-public class NioConnectionTimer extends TimeRunner {
+public class NioReadTimer extends TimeRunner {
     
-    public NioConnectionTimer(NioCoScheduler scheduler, NioCoSocket source, long runat){
+    boolean timeout;
+    
+    public NioReadTimer(NioCoScheduler scheduler, NioCoSocket source, long runat){
         super(scheduler.nextTimerSlot(), scheduler, source, runat);
     }
     
@@ -46,9 +46,14 @@ public class NioConnectionTimer extends TimeRunner {
             return;
         }
         
-        corChan.coRunner.setContext(new SocketTimeoutException("Connect timeout"));
-        scheduler.execute(corChan.coRunner, source);
-        IoUtils.close(source);
+        try {
+            this.timeout = true;
+            scheduler.execute(corChan.coRunner, source);
+        } catch (final Exception e){
+            NioCoScheduler.debug("Uncaught exception", e);
+            IoUtils.close(source);
+            return;
+        }
     }
     
 }

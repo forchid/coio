@@ -17,7 +17,6 @@
 package io.co.nio;
 
 import io.co.CoIOException;
-import io.co.CoScheduler;
 import io.co.CoServerSocket;
 import io.co.util.IoUtils;
 
@@ -25,7 +24,6 @@ import java.io.IOException;
 import java.net.SocketAddress;
 import java.nio.channels.ServerSocketChannel;
 
-import com.offbynull.coroutines.user.Continuation;
 import com.offbynull.coroutines.user.Coroutine;
 
 /**
@@ -39,6 +37,10 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
     
     final ServerSocketChannel channel;
     final int id;
+    
+    public NioCoServerSocket(Coroutine coConnector, NioCoScheduler coScheduler) {
+        this(new DefaultNioCoAcceptor(), coConnector, coScheduler);
+    }
     
     public NioCoServerSocket(Coroutine coAcceptor, Coroutine coConnector, NioCoScheduler coScheduler) {
         super(coAcceptor, coConnector, coScheduler);
@@ -86,21 +88,8 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
     }
     
     public static void start(Coroutine coConnector, SocketAddress endpoint, int backlog)
-            throws CoIOException{
-        start(new Coroutine(){
-            private static final long serialVersionUID = 1608438566384500434L;
-
-            @Override
-            public void run(final Continuation co) throws Exception {
-                final NioCoServerSocket ssSocket = (NioCoServerSocket)co.getContext();
-                if(ssSocket != null){
-                    final CoScheduler scheduler = ssSocket.getCoScheduler();
-                    for(;!scheduler.isShutdown();){
-                        ssSocket.accept(co);
-                    }
-                }
-            }
-        }, coConnector, endpoint, backlog);
+            throws CoIOException {
+        start(new DefaultNioCoAcceptor(), coConnector, endpoint, backlog);
     }
     
     public static void start(Coroutine coAcceptor, Coroutine coConnector, SocketAddress endpoint)

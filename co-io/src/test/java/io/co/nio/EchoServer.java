@@ -16,7 +16,6 @@
  */
 package io.co.nio;
 
-import io.co.CoIOException;
 import io.co.CoInputStream;
 import io.co.CoOutputStream;
 import io.co.CoSocket;
@@ -37,47 +36,45 @@ import com.offbynull.coroutines.user.Coroutine;
 public class EchoServer {
 
     public static void main(String[] args) {
-        final SocketAddress endpoint = new InetSocketAddress("localhost", 9999);
+        System.setProperty("io.co.soTimeout", "10000");
+        SocketAddress endpoint = new InetSocketAddress("localhost", 9999);
         
-        NioCoServerSocket.start(new Coroutine(){
-            private static final long serialVersionUID = 1L;
-
-            @Override
-            public void run(Continuation co) throws Exception {
-                final CoSocket sock = (CoSocket)co.getContext();
-                //System.out.println("Connected: " + sock);
-                
-                final CoInputStream in = sock.getInputStream();
-                final CoOutputStream out = sock.getOutputStream();
-                
-                final byte[] b = new byte[512];
-                for(;;) {
-                    try {
-                        int i = 0;
-                        for(; i < b.length;) {
-                            final int n = in.read(co, b, i, b.length-i);
-                            if(n == -1) {
-                                //System.out.println("Server: EOF");
-                                break;
-                            }
-                            i += n;
-                        }
-                        //System.out.println("Server: rbytes "+i);
-                        out.write(co, b, 0, i);
-                        out.flush(co);
-                    } catch(final CoIOException e) {
-                        //System.err.println("Sever: io error: "+ e);
-                        break;
-                    }
-                }
-                
-                sock.close();
-                //sock.getCoScheduler().shutdown();
-            }
-            
-        }, endpoint);
-        
+        NioCoServerSocket.start(new Connector(), endpoint);
         System.out.println("Bye");
     }
 
+    static class Connector implements Coroutine {
+        private static final long serialVersionUID = 1L;
+
+        @Override
+        public void run(Continuation co) throws Exception {
+            final CoSocket sock = (CoSocket)co.getContext();
+            //System.out.println("Connected: " + sock);
+            
+            final CoInputStream in = sock.getInputStream();
+            final CoOutputStream out = sock.getOutputStream();
+            
+            try {
+                final byte[] b = new byte[512];
+                for(;;) {
+                    int i = 0;
+                    for(; i < b.length;) {
+                        final int n = in.read(co, b, i, b.length-i);
+                        if(n == -1) {
+                            //System.out.println("Server: EOF");
+                            break;
+                        }
+                        i += n;
+                    }
+                    //System.out.println("Server: rbytes "+i);
+                    out.write(co, b, 0, i);
+                    out.flush(co);
+                }
+            } finally {
+                sock.close();
+                //sock.getCoScheduler().shutdown();
+            }
+        }
+        
+    }
 }

@@ -17,6 +17,7 @@
 package io.co.nio;
 
 import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -92,7 +93,12 @@ public class NioCoInputStream extends CoInputStream {
                     return -1;
                 }
                 if(n == 0) {
+                    final NioReadTimer timer = this.coSocket.startReadTimer();
                     co.suspend();
+                    if(timer != null && timer.timeout){
+                        throw new SocketTimeoutException("Read timeout");
+                    }
+                    this.coSocket.cancelReadTimer();
                     continue;
                 }
                 // Read more
@@ -109,6 +115,7 @@ public class NioCoInputStream extends CoInputStream {
             throw new CoIOException(cause);
         } finally {
             IoUtils.disableRead(selKey, this.selector, this.coSocket);
+            this.coSocket.cancelReadTimer();
         }
     }
     

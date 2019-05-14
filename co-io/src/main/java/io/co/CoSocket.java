@@ -30,8 +30,11 @@ import com.offbynull.coroutines.user.Coroutine;
  */
 public abstract class CoSocket implements CoChannel {
     
+    protected static final int SO_TIMEOUT = Integer.getInteger("io.co.soTimeout", 0);
+    
     protected final Coroutine coConnector;
     protected final CoScheduler coScheduler;
+    private int soTimeout = SO_TIMEOUT;
     
     protected CoSocket(Coroutine coConnector, CoScheduler coScheduler) {
         this.coConnector = coConnector;
@@ -44,6 +47,17 @@ public abstract class CoSocket implements CoChannel {
     
     public CoScheduler getCoScheduler(){
         return this.coScheduler;
+    }
+    
+    public int getSoTimeout(){
+        return this.soTimeout;
+    }
+    
+    public void setSoTimeout(int soTimeout){
+        if(soTimeout < 0){
+            throw new IllegalArgumentException("soTimeout " + soTimeout);
+        }
+        this.soTimeout = soTimeout;
     }
     
     public abstract void connect(SocketAddress endpoint) throws IOException;

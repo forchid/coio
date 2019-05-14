@@ -16,7 +16,6 @@
  */
 package io.co.nio;
 
-import io.co.CoIOException;
 import io.co.CoInputStream;
 import io.co.CoOutputStream;
 import io.co.CoSocket;
@@ -38,11 +37,13 @@ import com.offbynull.coroutines.user.Coroutine;
 public class EchoClient {
 
     public static void main(String[] args) throws Exception {
+        System.setProperty("io.co.soTimeout", "10000");
+        
         final long ts = System.currentTimeMillis();
         final SocketAddress remote = new InetSocketAddress("localhost", 9999);
         
         final NioCoScheduler scheduler = new NioCoScheduler();
-        final int conns = 3000;
+        final int conns = 1000;
         final MutableInteger success = new MutableInteger();
         try {
             for(int i = 0; i < conns; ++i){
@@ -84,15 +85,14 @@ public class EchoClient {
             }
             final CoSocket sock = (CoSocket)ctx;
             //System.out.println("Connected: " + sock);
-            
-            final long ts = System.currentTimeMillis();
-            final CoInputStream in = sock.getInputStream();
-            final CoOutputStream out = sock.getOutputStream();
-            
-            final byte[] b = new byte[512];
-            final int requests = 10;
-            for(int i = 0; i < requests; ++i) {
-                try {
+            try {
+                final long ts = System.currentTimeMillis();
+                final CoInputStream in = sock.getInputStream();
+                final CoOutputStream out = sock.getOutputStream();
+                
+                final byte[] b = new byte[512];
+                final int requests = 10;
+                for(int i = 0; i < requests; ++i) {
                     out.write(co, b);
                     final int wbytes = b.length;
                     out.flush(co);
@@ -107,16 +107,14 @@ public class EchoClient {
                     }
                     
                     //System.out.println(String.format("wbytes %d, rbytes %d ", wbytes, rbytes));
-                } catch(final CoIOException e) {
-                    System.err.println(String.format("Client-%05d: io error %s ", id, e));
-                    break;
                 }
+                success.value++;
+                System.out.println(String.format("Client-%05d: time %dms", 
+                     id, (System.currentTimeMillis() - ts)));
+            } finally {
+                sock.close();
+                sock.getCoScheduler().shutdown();
             }
-            success.value++;
-            System.out.println(String.format("Client-%05d: time %dms", id, (System.currentTimeMillis() - ts)));
-            
-            sock.close();
-            sock.getCoScheduler().shutdown();
         }
         
     }

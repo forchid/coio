@@ -44,7 +44,8 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     final CoOutputStream out;
     final int id;
     
-    TimeRunner connectionTimer;
+    private TimeRunner connectionTimer;
+    private TimeRunner readTimer;
     
     public NioCoSocket(Coroutine coConnector, SocketChannel channel, NioCoScheduler coScheduler) {
         super(coConnector, coScheduler);
@@ -154,12 +155,42 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
             scheduler.shutdown();
         }
     }
+    
+    protected NioConnectionTimer startConnectionTimer(final int timeout) {
+        if(timeout > 0){
+            final NioCoScheduler scheduler = (NioCoScheduler)getCoScheduler();
+            final long runat = System.currentTimeMillis() + timeout;
+            this.connectionTimer = new NioConnectionTimer(scheduler, this, runat);
+            scheduler.schedule(this.connectionTimer);
+            return (NioConnectionTimer)this.connectionTimer;
+        }
+        return null;
+    }
 
-    void cancelConnetionTimer() {
+    protected void cancelConnetionTimer() {
         if(this.connectionTimer != null){
             this.connectionTimer.cancel();
             this.connectionTimer = null;
         }
     }
     
+    protected void cancelReadTimer() {
+        if(this.readTimer != null){
+            this.readTimer.cancel();
+            this.readTimer = null;
+        }
+    }
+
+    protected NioReadTimer startReadTimer() {
+        final int timeout = getSoTimeout();
+        if(timeout > 0){
+            final NioCoScheduler scheduler = (NioCoScheduler)getCoScheduler();
+            final long runat = System.currentTimeMillis() + timeout;
+            this.readTimer = new NioReadTimer(scheduler, this, runat);
+            scheduler.schedule(this.readTimer);
+            return (NioReadTimer)this.readTimer;
+        }
+        return null;
+    }
+
 }
