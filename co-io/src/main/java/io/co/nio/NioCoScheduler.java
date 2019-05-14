@@ -16,21 +16,16 @@
  */
 package io.co.nio;
 
-import java.io.IOException;
+import java.io.*;
 import java.net.SocketAddress;
-import java.nio.channels.ClosedSelectorException;
-import java.nio.channels.SelectableChannel;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
+import java.nio.channels.*;
+import java.text.*;
+import java.util.*;
+import java.util.Map.*;
 
 import com.offbynull.coroutines.user.Continuation;
 import com.offbynull.coroutines.user.Coroutine;
+import com.offbynull.coroutines.user.CoroutineException;
 import com.offbynull.coroutines.user.CoroutineRunner;
 
 import io.co.CoChannel;
@@ -74,7 +69,7 @@ public class NioCoScheduler implements CoScheduler {
             try {
                 // Shutdown handler
                 if(this.shutdown){
-                    for(final Iterator<Map.Entry<CoChannel, CoRunnerChannel>> i = chans.entrySet().iterator();
+                    for(Iterator<Entry<CoChannel, CoRunnerChannel>> i = chans.entrySet().iterator();
                         i.hasNext();){
                         final CoRunnerChannel runChan = i.next().getValue();
                         if(runChan.channel instanceof ServerSocketChannel){
@@ -95,6 +90,7 @@ public class NioCoScheduler implements CoScheduler {
                         continue;
                     }
                 } catch(final ClosedSelectorException cause){
+                    debug("Selector closed", cause);
                     this.stop();
                     break;
                 }
@@ -119,10 +115,39 @@ public class NioCoScheduler implements CoScheduler {
                         doWrite(key);
                     }
                 }
+            } catch (final CoroutineException e){
+                debug("Uncaught exception in coroutine", e.getCause());
             } catch (final IOException cause){
                 this.stop();
-                throw new CoIOException("Select error", cause);
+                throw new CoIOException("Scheduler fatal", cause);
             }
+        }
+    }
+    
+    protected static void debug(final String message, final Throwable cause){
+        if(DEBUG){
+            if(cause != null){
+                debug(System.err, message);
+                cause.printStackTrace(System.err);
+            }else{
+                debug(System.err, message);
+            }
+        }
+    }
+    
+    protected static void debug(final String format, Object ...args){
+        debug(System.out, format, args);
+    }
+    
+    protected static void debug(final PrintStream out, String format, Object ...args){
+        if(DEBUG){
+            final DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+            String message = format;
+            if(args.length > 0){
+                message = String.format(format, args);
+            }
+            final String thread = Thread.currentThread().getName();
+            out.println(String.format("%s[%s] %s", df.format(new Date()), thread, message));
         }
     }
     
@@ -131,18 +156,24 @@ public class NioCoScheduler implements CoScheduler {
         this.stopped = true;
     }
     
+    protected void execute(CoroutineRunner coRunner, CoChannel coChannel) {
+        if(coRunner.execute() == false){
+            this.close(coChannel);
+        }
+    }
+    
     protected void doWrite(final SelectionKey key) {
         final CoSocket socket = (CoSocket)key.attachment();
         final CoRunnerChannel corChan = this.chans.get(socket);
         final CoroutineRunner coRunner = corChan.coRunner;
-        coRunner.execute();
+        execute(coRunner, socket);
     }
     
     protected void doRead(final SelectionKey key) {
         final CoSocket socket = (CoSocket)key.attachment();
         final CoRunnerChannel corChan = this.chans.get(socket);
         final CoroutineRunner coRunner = corChan.coRunner;
-        coRunner.execute();
+        execute(coRunner, socket);
     }
     
     protected void doConnect(final SelectionKey key) {
@@ -155,11 +186,12 @@ public class NioCoScheduler implements CoScheduler {
             try {
                 chan.finishConnect();
                 coRunner.setContext(socket);
-                coRunner.execute();
+                execute(coRunner, socket);
                 failed = false;
             } catch (final IOException cause){
+                debug("Connection error", cause);
                 coRunner.setContext(null);
-                coRunner.execute();
+                execute(coRunner, socket);
             }
         } finally {
             if(failed){
@@ -193,12 +225,12 @@ public class NioCoScheduler implements CoScheduler {
             };
             final CoRunnerChannel sRunChan = new CoRunnerChannel(coConnector, chan);
             this.chans.put(coSocket, sRunChan);
-            // 2. Resume accept
+            // 2. Next accept
             ssRunChan.coRunner.setContext(coSocket);
             ssRunChan.coRunner.execute();
             // 3. Start the new
             sRunChan.coRunner.setContext(coSocket);
-            sRunChan.coRunner.execute();
+            execute(sRunChan.coRunner, coSocket);
             
             failed = false;
         } finally {

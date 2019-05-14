@@ -30,6 +30,8 @@ import com.offbynull.coroutines.user.Continuation;
  */
 public interface CoScheduler {
     
+    boolean DEBUG = Boolean.getBoolean("io.co.debug");
+    
     void start();
     
     CoSocket accept(Continuation co, CoServerSocket coServerSocket)

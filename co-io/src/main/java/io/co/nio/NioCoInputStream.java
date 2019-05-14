@@ -60,8 +60,14 @@ public class NioCoInputStream extends CoInputStream {
         }
         
         try {
+            final SocketChannel chan = this.channel;
             buf.clear();
-            this.channel.read(buf);
+            for(; buf.hasRemaining(); ){
+                final int n = chan.read(buf);
+                if(n == 0 || n == -1){
+                    break;
+                }
+            }
             buf.flip();
             return buf.remaining();
         } catch (final IOException cause) {
@@ -82,13 +88,20 @@ public class NioCoInputStream extends CoInputStream {
         try {
             buf.clear();
             for(;;){
-                final int n = chan.read(buf);
+                int n = chan.read(buf);
                 if(n == -1) {
                     return -1;
                 }
                 if(n == 0) {
                     co.suspend();
                     continue;
+                }
+                // Read more
+                for(; buf.hasRemaining(); ){
+                    n = chan.read(buf);
+                    if(n == 0 || n == -1){
+                        break;
+                    }
                 }
                 buf.flip();
                 return buf.get();
