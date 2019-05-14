@@ -6,49 +6,48 @@ An IO library based on coroutines
 public class EchoServer {
 
     public static void main(String[] args) {
-        final SocketAddress endpoint = new InetSocketAddress("localhost", 9999);
+        System.setProperty("io.co.soTimeout", "8000");
+        System.setProperty("io.co.maxConnections", "2500");
+        SocketAddress endpoint = new InetSocketAddress("localhost", 9999);
         
-        NioCoServerSocket.start(new Coroutine(){
-            private static final long serialVersionUID = 1L;
-
-            @Override
-            public void run(Continuation co) throws Exception {
-                final CoSocket sock = (CoSocket)co.getContext();
-                //System.out.println("Connected: " + sock);
-                
-                final CoInputStream in = sock.getInputStream();
-                final CoOutputStream out = sock.getOutputStream();
-                
-                final byte[] b = new byte[512];
-                for(;;) {
-                    try {
-                        int i = 0;
-                        for(; i < b.length;) {
-                            final int n = in.read(co, b, i, b.length-i);
-                            if(n == -1) {
-                                //System.out.println("Server: EOF");
-                                break;
-                            }
-                            i += n;
-                        }
-                        //System.out.println("Server: rbytes "+i);
-                        out.write(co, b, 0, i);
-                        out.flush(co);
-                    } catch(final CoIOException e) {
-                        //System.err.println("Sever: io error: "+ e);
-                        break;
-                    }
-                }
-                
-                sock.close();
-                //sock.getCoScheduler().shutdown();
-            }
-            
-        }, endpoint);
-        
+        NioCoServerSocket.start(new Connector(), endpoint);
         System.out.println("Bye");
     }
 
+    static class Connector implements Coroutine {
+        private static final long serialVersionUID = 1L;
+
+        @Override
+        public void run(Continuation co) throws Exception {
+            final CoSocket sock = (CoSocket)co.getContext();
+            //System.out.println("Connected: " + sock);
+            
+            final CoInputStream in = sock.getInputStream();
+            final CoOutputStream out = sock.getOutputStream();
+            
+            try {
+                final byte[] b = new byte[512];
+                for(;;) {
+                    int i = 0;
+                    for(; i < b.length;) {
+                        final int n = in.read(co, b, i, b.length-i);
+                        if(n == -1) {
+                            //System.out.println("Server: EOF");
+                            break;
+                        }
+                        i += n;
+                    }
+                    //System.out.println("Server: rbytes "+i);
+                    out.write(co, b, 0, i);
+                    out.flush(co);
+                }
+            } finally {
+                sock.close();
+                //sock.getCoScheduler().shutdown();
+            }
+        }
+        
+    }
 }
 ```
 ## 2. Echo client
@@ -56,6 +55,9 @@ public class EchoServer {
 public class EchoClient {
 
     public static void main(String[] args) throws Exception {
+        System.setProperty("io.co.soTimeout", "3000");
+        System.setProperty("io.co.debug", "false");
+        
         final long ts = System.currentTimeMillis();
         final SocketAddress remote = new InetSocketAddress("localhost", 9999);
         
@@ -64,9 +66,9 @@ public class EchoClient {
         final MutableInteger success = new MutableInteger();
         try {
             for(int i = 0; i < conns; ++i){
-                final Coroutine connector = new Connector(i, success);
+                final Coroutine connector = new Connector(i, success, scheduler);
                 final CoSocket sock = new NioCoSocket(connector, scheduler);
-                sock.connect(remote);
+                sock.connect(remote, 6000);
                 if(i % 100 == 0){
                     Thread.sleep(100L);
                 }
@@ -83,32 +85,37 @@ public class EchoClient {
     static class Connector implements Coroutine {
         private static final long serialVersionUID = 1L;
         
+        final NioCoScheduler scheduler;
         final MutableInteger success;
         final int id;
         
-        Connector(int id, final MutableInteger success){
+        Connector(int id, MutableInteger success, NioCoScheduler scheduler){
+            this.scheduler = scheduler;
             this.success = success;
             this.id = id;
         }
 
         @Override
         public void run(Continuation co) throws Exception {
-            final Object ctx = co.getContext();
-            if(ctx instanceof Throwable){
-                // Connect fail
-                return;
-            }
-            final CoSocket sock = (CoSocket)ctx;
-            //System.out.println("Connected: " + sock);
-            
-            final long ts = System.currentTimeMillis();
-            final CoInputStream in = sock.getInputStream();
-            final CoOutputStream out = sock.getOutputStream();
-            
-            final byte[] b = new byte[512];
-            final int requests = 10;
-            for(int i = 0; i < requests; ++i) {
-                try {
+            CoSocket sock = null;
+            try {
+                final Object ctx = co.getContext();
+                if(ctx instanceof Throwable){
+                    // Connect fail
+                    final Throwable cause = (Throwable)ctx;
+                    cause.printStackTrace();
+                    return;
+                }
+                
+                sock = (CoSocket)ctx;
+                //System.out.println("Connected: " + sock);
+                final long ts = System.currentTimeMillis();
+                final CoInputStream in = sock.getInputStream();
+                final CoOutputStream out = sock.getOutputStream();
+                
+                final byte[] b = new byte[512];
+                final int requests = 10;
+                for(int i = 0; i < requests; ++i) {
                     out.write(co, b);
                     final int wbytes = b.length;
                     out.flush(co);
@@ -123,16 +130,14 @@ public class EchoClient {
                     }
                     
                     //System.out.println(String.format("wbytes %d, rbytes %d ", wbytes, rbytes));
-                } catch(final CoIOException e) {
-                    System.err.println(String.format("Client-%05d: io error %s ", id, e));
-                    break;
                 }
+                success.value++;
+                System.out.println(String.format("Client-%05d: time %dms", 
+                     id, (System.currentTimeMillis() - ts)));
+            } finally {
+                IoUtils.close(sock);
+                scheduler.shutdown();
             }
-            success.value++;
-            System.out.println(String.format("Client-%05d: time %dms", id, (System.currentTimeMillis() - ts)));
-            
-            sock.close();
-            sock.getCoScheduler().shutdown();
         }
         
     }
