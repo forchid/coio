@@ -22,7 +22,6 @@ import io.co.CoOutputStream;
 import io.co.CoSocket;
 
 import java.io.EOFException;
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 
@@ -38,21 +37,23 @@ import com.offbynull.coroutines.user.Coroutine;
  */
 public class EchoClient {
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws Exception {
         final SocketAddress remote = new InetSocketAddress("localhost", 9999);
         
         final NioCoScheduler scheduler = new NioCoScheduler();
-        final int conns = 2000;
+        final int conns = 3000;
         final MutableInteger success = new MutableInteger();
         try {
-            
             for(int i = 0; i < conns; ++i){
                 final Coroutine connector = new Connector(i, success);
                 final CoSocket sock = new NioCoSocket(connector, scheduler);
                 sock.connect(remote);
+                if(i % 100 == 0){
+                    Thread.sleep(100L);
+                }
             }
             scheduler.start();
-        }finally{
+        } finally {
             scheduler.shutdown();
         }
         
@@ -84,7 +85,7 @@ public class EchoClient {
             final CoOutputStream out = sock.getOutputStream();
             
             final byte[] b = new byte[512];
-            final int requests = 1000;
+            final int requests = 10;
             for(int i = 0; i < requests; ++i) {
                 try {
                     out.write(co, b);

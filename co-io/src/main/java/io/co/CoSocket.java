@@ -54,4 +54,9 @@ public abstract class CoSocket implements CoChannel {
     
     public abstract CoOutputStream getOutputStream();
     
+    @Override
+    public void close() {
+        this.coScheduler.close(this);
+    }
+    
 }

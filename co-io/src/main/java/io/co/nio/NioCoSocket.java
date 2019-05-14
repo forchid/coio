@@ -36,14 +36,17 @@ import com.offbynull.coroutines.user.Coroutine;
  * @since 2019-05-13
  *
  */
-public class NioCoSocket extends CoSocket {
+public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel> {
     
     final SocketChannel channel;
     final CoInputStream in;
     final CoOutputStream out;
+    final int id;
     
     public NioCoSocket(Coroutine coConnector, SocketChannel channel, NioCoScheduler coScheduler) {
         super(coConnector, coScheduler);
+        
+        this.id = coScheduler.nextSlot();
         this.channel = channel;
         coScheduler.initialize();
         final Selector selector = coScheduler.selector;
@@ -54,6 +57,7 @@ public class NioCoSocket extends CoSocket {
     public NioCoSocket(Coroutine coConnector, NioCoScheduler coScheduler) {
         super(coConnector, coScheduler);
         
+        this.id = coScheduler.nextSlot();
         SocketChannel chan = null;
         boolean failed = true;
         try {
@@ -73,6 +77,15 @@ public class NioCoSocket extends CoSocket {
             }
         }
     }
+    
+    public int id(){
+        return this.id;
+    }
+    
+    @Override
+    public SocketChannel channel(){
+        return this.channel;
+    }
 
     @Override
     public boolean isOpen() {
@@ -80,10 +93,11 @@ public class NioCoSocket extends CoSocket {
     }
     
     @Override
-    public void close() {
+    public void close(){
+        super.close();
         IoUtils.close(getInputStream());
         IoUtils.close(getOutputStream());
-        this.coScheduler.close(this);
+        IoUtils.close(this.channel);
     }
 
     @Override

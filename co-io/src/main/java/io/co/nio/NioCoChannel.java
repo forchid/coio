@@ -16,24 +16,20 @@
  */
 package io.co.nio;
 
-import com.offbynull.coroutines.user.Coroutine;
-import com.offbynull.coroutines.user.CoroutineRunner;
+import java.nio.channels.Channel;
+
+import io.co.CoChannel;
 
 /**
- * A channel wrapper with coroutine runner.
  * 
  * @author little-pan
- * @since 2019-05-13日
+ * @since 2019-05-14
  *
  */
-class CoRunnerChannel {
+interface NioCoChannel<S extends Channel> extends CoChannel {
     
-    final CoroutineRunner coRunner;
-    final NioCoChannel<?> coChannel;
-    
-    CoRunnerChannel(Coroutine co, NioCoChannel<?> coChannel){
-        this.coRunner  = new CoroutineRunner(co);
-        this.coChannel = coChannel;
-    }
+    int id();
 
+    S channel();
+    
 }

@@ -16,7 +16,7 @@
  */
 package io.co;
 
-import java.io.Closeable;
+import java.nio.channels.Channel;
 
 /**
  * A channel based on coroutines.
@@ -25,7 +25,7 @@ import java.io.Closeable;
  * @since 2019-05-13
  *
  */
-public interface CoChannel extends Closeable {
+public interface CoChannel extends Channel {
     
     boolean isOpen();
     

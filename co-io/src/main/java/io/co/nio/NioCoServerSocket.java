@@ -16,17 +16,17 @@
  */
 package io.co.nio;
 
+import io.co.CoIOException;
+import io.co.CoScheduler;
+import io.co.CoServerSocket;
+import io.co.util.IoUtils;
+
 import java.io.IOException;
 import java.net.SocketAddress;
 import java.nio.channels.ServerSocketChannel;
 
 import com.offbynull.coroutines.user.Continuation;
 import com.offbynull.coroutines.user.Coroutine;
-
-import io.co.CoIOException;
-import io.co.CoScheduler;
-import io.co.CoServerSocket;
-import io.co.util.IoUtils;
 
 /**
  * A NIO implementation of CoServerSocket.
@@ -35,13 +35,15 @@ import io.co.util.IoUtils;
  * @since 2019-05-13
  *
  */
-public class NioCoServerSocket extends CoServerSocket {
+public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<ServerSocketChannel> {
     
     final ServerSocketChannel channel;
+    final int id;
     
-    public NioCoServerSocket(Coroutine coAcceptor, Coroutine coConnector, CoScheduler coScheduler) {
+    public NioCoServerSocket(Coroutine coAcceptor, Coroutine coConnector, NioCoScheduler coScheduler) {
         super(coAcceptor, coConnector, coScheduler);
         
+        this.id = coScheduler.nextSlot();
         ServerSocketChannel ssChan = null;
         boolean failed = true;
         try {
@@ -57,10 +59,25 @@ public class NioCoServerSocket extends CoServerSocket {
             }
         }
     }
+    
+    public int id(){
+        return this.id;
+    }
+    
+    @Override
+    public ServerSocketChannel channel(){
+        return this.channel;
+    }
 
     @Override
     public boolean isOpen() {
         return this.channel.isOpen();
+    }
+    
+    @Override
+    public void close(){
+        super.close();
+        IoUtils.close(this.channel);
     }
     
     public static void start(Coroutine coConnector, SocketAddress endpoint)throws CoIOException {
