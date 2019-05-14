@@ -75,11 +75,12 @@ public class EchoClient {
 
         @Override
         public void run(Continuation co) throws Exception {
-            final CoSocket sock = (CoSocket)co.getContext();
-            if(sock == null){
+            final Object ctx = co.getContext();
+            if(ctx instanceof Throwable){
                 // Connect fail
                 return;
             }
+            final CoSocket sock = (CoSocket)ctx;
             //System.out.println("Connected: " + sock);
             
             final long ts = System.currentTimeMillis();
