@@ -100,13 +100,19 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     @Override
-    public void connect(CoSocket coSocket, SocketAddress endpoint, int timeout) throws IOException {
+    public void connect(CoSocket coSocket, SocketAddress remote) throws IOException {
+        connect(coSocket, remote, 0);
+    }
+    
+    @Override
+    public void connect(CoSocket coSocket, SocketAddress remote, int timeout)
+            throws IOException {
         final NioCoSocket socket = (NioCoSocket)coSocket;
         boolean failed = true;
         try {
             final SocketChannel chan = socket.channel();
             chan.register(this.selector, SelectionKey.OP_CONNECT, coSocket);
-            chan.connect(endpoint);
+            chan.connect(remote);
             failed = false;
         } finally {
             if(failed){

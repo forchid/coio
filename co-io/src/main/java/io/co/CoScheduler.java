@@ -40,7 +40,10 @@ public interface CoScheduler {
     void bind(CoServerSocket coServerSocket, SocketAddress endpoint, int backlog)
         throws IOException;
     
-    void connect(CoSocket coSocket, SocketAddress endpoint, int timeout)
+    void connect(CoSocket coSocket, SocketAddress remote)
+        throws IOException;
+    
+    void connect(CoSocket coSocket, SocketAddress remote, int timeout)
         throws IOException;
     
     void close(CoChannel coChannel);
