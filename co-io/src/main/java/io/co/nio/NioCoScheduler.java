@@ -56,6 +56,131 @@ public class NioCoScheduler implements CoScheduler {
         this.chans = new CoRunnerChannel[initConnections];
     }
     
+    @Override
+    public void start() {
+        initialize();
+        schedule();
+    }
+    
+    @Override
+    public CoSocket accept(Continuation co, CoServerSocket coServerSocket)
+        throws CoIOException {
+        try {
+            this.initialize();
+            
+            final NioCoServerSocket sSocket = (NioCoServerSocket)coServerSocket;
+            final CoRunnerChannel corChan= this.chans[sSocket.id()];
+            final SelectableChannel chan = (SelectableChannel)corChan.coChannel.channel();
+            chan.register(this.selector, SelectionKey.OP_ACCEPT, coServerSocket);
+        } catch (final IOException cause){
+            throw new CoIOException(cause);
+        }
+        co.suspend();
+        return (CoSocket)co.getContext();
+    }
+    
+    @Override
+    public void bind(CoServerSocket coServerSocket, SocketAddress endpoint, int backlog)
+        throws IOException {
+        
+        final NioCoServerSocket serverSocket = (NioCoServerSocket)coServerSocket;
+        final ServerSocketChannel ssChan = serverSocket.channel();
+        boolean failed = true;
+        try {
+            ssChan.bind(endpoint, backlog);
+            final CoRunnerChannel corChan = runnerChannel(serverSocket);
+            corChan.coRunner.setContext(serverSocket);
+            corChan.coRunner.execute();
+            failed = false;
+        } finally {
+            if(failed){
+                IoUtils.close(serverSocket);
+            }
+        }
+    }
+    
+    @Override
+    public void connect(CoSocket coSocket, SocketAddress endpoint, int timeout) throws IOException {
+        final NioCoSocket socket = (NioCoSocket)coSocket;
+        boolean failed = true;
+        try {
+            final SocketChannel chan = socket.channel();
+            chan.register(this.selector, SelectionKey.OP_CONNECT, coSocket);
+            chan.connect(endpoint);
+            failed = false;
+        } finally {
+            if(failed){
+                this.close(coSocket);
+            }
+        }
+    }
+    
+    public void close(CoChannel coChannel) {
+        if(coChannel == null){
+            return;
+        }
+        
+        final NioCoChannel<?> chan = (NioCoChannel<?>)coChannel;
+        final CoRunnerChannel corChan = runnerChannel(chan);
+        if(corChan != null && corChan.coChannel == chan) {
+            this.chans[chan.id()] = null;
+        }
+    }
+    
+    @Override
+    public void shutdown() {
+        final Selector sel = this.selector;
+        if(sel != null){
+            sel.wakeup();
+        }
+        this.shutdown = true;
+    }
+    
+    @Override
+    public boolean isShutdown() {
+        return this.shutdown;
+    }
+    
+    @Override
+    public boolean isStopped(){
+        return this.stopped;
+    }
+    
+    CoRunnerChannel register(final NioCoChannel<?> coChannel, final Coroutine co){
+        final int slotId = coChannel.id();
+        final CoRunnerChannel oldChan = this.chans[slotId];
+        if(oldChan != null && oldChan.coChannel.isOpen()){
+            throw new IllegalStateException(String.format("Channel slot %s used", slotId));
+        }
+        final CoRunnerChannel newChan = new CoRunnerChannel(co, coChannel);
+        this.chans[slotId] = newChan;
+        return newChan;
+    }
+    
+    <S extends Channel> CoRunnerChannel runnerChannel(final NioCoChannel<S> coChannel){
+        final CoRunnerChannel corChan = this.chans[coChannel.id()];
+        if(corChan == null || corChan.coChannel != coChannel){
+            return null;
+        }
+        return corChan;
+    }
+    
+    int nextSlot() {
+        final CoRunnerChannel[] chans = this.chans;
+        final int n = chans.length;
+        for(int i = 0; i < n; ++i){
+            final CoRunnerChannel corChan = chans[i];
+            if(corChan == null || !corChan.coChannel.isOpen()){
+                return i;
+            }
+        }
+        // expand
+        final CoRunnerChannel[] newChans = new CoRunnerChannel[n << 1];
+        System.arraycopy(chans, 0, newChans, 0, n);
+        this.chans = newChans;
+        return n;
+    }
+    
     protected void initialize() throws CoIOException {
         try {
             if(this.selector == null){
@@ -165,7 +290,7 @@ public class NioCoScheduler implements CoScheduler {
         this.stopped = true;
     }
     
-    protected void execute(CoroutineRunner coRunner, CoChannel coChannel) {
+    protected void execute(CoroutineRunner coRunner, NioCoChannel<?> coChannel) {
         if(coRunner.execute() == false){
             this.close(coChannel);
         }
@@ -173,198 +298,75 @@ public class NioCoScheduler implements CoScheduler {
     
     protected void doWrite(final SelectionKey key) {
         final NioCoChannel<?> socket = (NioCoChannel<?>)key.attachment();
-        final CoRunnerChannel corChan = this.chans[socket.id()];
+        final CoRunnerChannel corChan = runnerChannel(socket);
         final CoroutineRunner coRunner = corChan.coRunner;
         execute(coRunner, socket);
     }
     
     protected void doRead(final SelectionKey key) {
         final NioCoChannel<?> socket = (NioCoChannel<?>)key.attachment();
-        final CoRunnerChannel corChan = this.chans[socket.id()];
+        final CoRunnerChannel corChan = runnerChannel(socket);
         final CoroutineRunner coRunner = corChan.coRunner;
         execute(coRunner, socket);
     }
     
     protected void doConnect(final SelectionKey key) {
         final SocketChannel chan = (SocketChannel)key.channel();
+        final NioCoChannel<?> socket = (NioCoChannel<?>)key.attachment();
         boolean failed = true;
         try {
-            final NioCoChannel<?> socket = (NioCoChannel<?>)key.attachment();
-            final CoRunnerChannel corChan = this.chans[socket.id()];
+            final CoRunnerChannel corChan = runnerChannel(socket);
             final CoroutineRunner coRunner = corChan.coRunner;
             try {
                 chan.finishConnect();
-                coRunner.setContext(socket);
-                execute(coRunner, socket);
                 failed = false;
             } catch (final IOException cause){
-                debug("Connection error", cause);
-                coRunner.setContext(null);
+                coRunner.setContext(cause);
                 execute(coRunner, socket);
+                return;
             }
+            coRunner.setContext(socket);
+            execute(coRunner, socket);
         } finally {
             if(failed){
-                IoUtils.close(chan);
+                IoUtils.close(socket);
             }
         }
     }
     
     protected void doAccept(final SelectionKey key) throws IOException {
-        final ServerSocketChannel ssChan = (ServerSocketChannel)key.channel();
-        final NioCoChannel<?> socket = (NioCoChannel<?>)key.attachment();
-        final CoRunnerChannel ssRunChan = this.chans[socket.id()];
-        final CoServerSocket cosSocket  = (CoServerSocket)ssRunChan.coChannel;
         NioCoSocket coSocket = null;
         SocketChannel chan = null;
         boolean failed = true;
         try {
-            chan = ssChan.accept();
-            chan.configureBlocking(false);
-            // 1. Create coSocket
-            final Coroutine coConnector = cosSocket.getCoConnector();
-            coSocket = new NioCoSocket(coConnector, chan, this){
-                @Override
-                public void connect(SocketAddress endpoint) throws IOException {
-                    // NOOP
-                }
-
-                @Override
-                public void connect(SocketAddress endpoint, int timeout)throws IOException {
-                    // NOOP
-                }  
-            };
-            final CoRunnerChannel sRunChan = new CoRunnerChannel(coConnector, coSocket);
-            this.chans[coSocket.id()] =  sRunChan;
+            final ServerSocketChannel ssChan = (ServerSocketChannel)key.channel();
+            final NioCoChannel<?> sSocket = (NioCoChannel<?>)key.attachment();
+            final CoRunnerChannel ssRunChan = runnerChannel(sSocket);
+            final CoServerSocket cosSocket  = (CoServerSocket)ssRunChan.coChannel;
+            try {
+                chan = ssChan.accept();
+                chan.configureBlocking(false);
+                
+                // 1. Create coSocket
+                final Coroutine coConnector = cosSocket.getCoConnector();
+                coSocket = new PassiveNioCoSocket(coConnector, chan, this);
+            } finally {
+                // 2. Next accept
+                ssRunChan.coRunner.setContext(coSocket);
+                ssRunChan.coRunner.execute();
+            }
             
-            // 2. Next accept
-            ssRunChan.coRunner.setContext(coSocket);
-            ssRunChan.coRunner.execute();
-            // 3. Start the new
+            // 3. Start coSocket
+            final CoRunnerChannel sRunChan = runnerChannel(coSocket);
             sRunChan.coRunner.setContext(coSocket);
             execute(sRunChan.coRunner, coSocket);
             
             failed = false;
         } finally {
             if(failed){
-                this.close(coSocket);
                 IoUtils.close(chan);
-            }
-        }
-    }
-    
-    @Override
-    public void start() {
-        initialize();
-        schedule();
-    }
-    
-    @Override
-    public CoSocket accept(Continuation co, CoServerSocket coServerSocket)
-        throws CoIOException {
-        try {
-            this.initialize();
-            
-            final NioCoServerSocket sSocket = (NioCoServerSocket)coServerSocket;
-            final CoRunnerChannel corChan= this.chans[sSocket.id()];
-            final SelectableChannel chan = (SelectableChannel)corChan.coChannel.channel();
-            chan.register(this.selector, SelectionKey.OP_ACCEPT, coServerSocket);
-        } catch (final IOException cause){
-            throw new CoIOException(cause);
-        }
-        co.suspend();
-        return (CoSocket)co.getContext();
-    }
-    
-    @Override
-    public void bind(CoServerSocket coServerSocket, SocketAddress endpoint, int backlog)
-        throws IOException {
-        
-        final NioCoServerSocket nioSocket = (NioCoServerSocket)coServerSocket;
-        final ServerSocketChannel ssChan = nioSocket.channel();
-        boolean failed = true;
-        try {
-            ssChan.bind(endpoint, backlog);
-            final Coroutine coAcceptor = coServerSocket.getCoAcceptor();
-            final CoRunnerChannel corChan = new CoRunnerChannel(coAcceptor, nioSocket);
-            this.chans[nioSocket.id()] = corChan;
-            corChan.coRunner.setContext(nioSocket);
-            corChan.coRunner.execute();
-            failed = false;
-        } finally {
-            if(failed){
-                IoUtils.close(ssChan);
-            }
-        }
-    }
-    
-    @Override
-    public void connect(CoSocket coSocket, SocketAddress endpoint, int timeout) throws IOException {
-        final NioCoSocket nioSocket = (NioCoSocket)coSocket;
-        final SocketChannel chan = nioSocket.channel();
-        boolean failed = true;
-        try {
-            chan.register(this.selector, SelectionKey.OP_CONNECT, coSocket);
-            final Coroutine connector = coSocket.getCoConnector();
-            this.chans[nioSocket.id()]= new CoRunnerChannel(connector, nioSocket);
-            chan.connect(endpoint);
-            failed = false;
-        } finally {
-            if(failed){
                 this.close(coSocket);
-                IoUtils.close(chan);
             }
-        }
-    }
-    
-    public void close(CoChannel coChannel) {
-        if(coChannel == null){
-            return;
-        }
-        final NioCoChannel<?> chan = (NioCoChannel<?>)coChannel;
-        final int chanId = chan.id();
-        final CoRunnerChannel corChan = this.chans[chanId];
-        if(corChan != null && corChan.coChannel == chan) {
-            this.chans[chanId] = null;
-        }
-    }
-    
-    @Override
-    public void shutdown() {
-        final Selector sel = this.selector;
-        if(sel != null){
-            sel.wakeup();
-        }
-        this.shutdown = true;
-    }
-    
-    @Override
-    public boolean isShutdown() {
-        return this.shutdown;
-    }
-    
-    @Override
-    public boolean isStopped(){
-        return this.stopped;
-    }
-    
-    int nextSlot() {
-        final CoRunnerChannel[] chans = this.chans;
-        final int n = chans.length;
-        for(int i = 0; i < n; ++i){
-            final CoRunnerChannel corChan = chans[i];
-            if(corChan == null || !corChan.coChannel.isOpen()){
-                return i;
-            }
-        }
-        // expand
-        try {
-            final CoRunnerChannel[] newChans = new CoRunnerChannel[n << 1];
-            System.arraycopy(chans, 0, newChans, 0, n);
-            this.chans = newChans;
-            return n;
-        } catch (final OutOfMemoryError oom){
-            debug("Expand channel slot fatal", oom);
-            return -1;
         }
     }
     

@@ -38,6 +38,7 @@ import com.offbynull.coroutines.user.Coroutine;
 public class EchoClient {
 
     public static void main(String[] args) throws Exception {
+        final long ts = System.currentTimeMillis();
         final SocketAddress remote = new InetSocketAddress("localhost", 9999);
         
         final NioCoScheduler scheduler = new NioCoScheduler();
@@ -57,7 +58,8 @@ public class EchoClient {
             scheduler.shutdown();
         }
         
-        System.out.println(String.format("Bye: conns = %s, success = %s", conns, success));
+        System.out.println(String.format("Bye: conns = %s, success = %s, time = %sms",
+              conns, success, System.currentTimeMillis() - ts));
     }
     
     static class Connector implements Coroutine {

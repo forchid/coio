@@ -46,18 +46,18 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     public NioCoSocket(Coroutine coConnector, SocketChannel channel, NioCoScheduler coScheduler) {
         super(coConnector, coScheduler);
         
-        this.id = coScheduler.nextSlot();
         this.channel = channel;
         coScheduler.initialize();
         final Selector selector = coScheduler.selector;
         this.in = new NioCoInputStream(this, this.channel, selector);
         this.out= new NioCoOutputStream(this, this.channel,selector);
+        this.id = coScheduler.nextSlot();
+        coScheduler.register(this, coConnector);
     }
     
     public NioCoSocket(Coroutine coConnector, NioCoScheduler coScheduler) {
         super(coConnector, coScheduler);
         
-        this.id = coScheduler.nextSlot();
         SocketChannel chan = null;
         boolean failed = true;
         try {
@@ -68,6 +68,8 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
             final Selector selector = coScheduler.selector;
             this.in = new NioCoInputStream(this, this.channel, selector);
             this.out= new NioCoOutputStream(this, this.channel,selector);
+            this.id = coScheduler.nextSlot();
+            coScheduler.register(this, coConnector);
             failed = false;
         } catch (final IOException cause) {
             throw new CoIOException(cause);

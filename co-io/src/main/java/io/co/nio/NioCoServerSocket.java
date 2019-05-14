@@ -43,13 +43,14 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
     public NioCoServerSocket(Coroutine coAcceptor, Coroutine coConnector, NioCoScheduler coScheduler) {
         super(coAcceptor, coConnector, coScheduler);
         
-        this.id = coScheduler.nextSlot();
         ServerSocketChannel ssChan = null;
         boolean failed = true;
         try {
             ssChan = ServerSocketChannel.open();
             ssChan.configureBlocking(false);
             this.channel = ssChan;
+            this.id = coScheduler.nextSlot();
+            coScheduler.register(this, coAcceptor);
             failed = false;
         } catch (final IOException cause){
             throw new CoIOException(cause);
