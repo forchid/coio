@@ -36,7 +36,8 @@ import com.offbynull.coroutines.user.Coroutine;
 public class EchoServer {
 
     public static void main(String[] args) {
-        System.setProperty("io.co.soTimeout", "10000");
+        System.setProperty("io.co.soTimeout", "8000");
+        System.setProperty("io.co.maxConnections", "2500");
         SocketAddress endpoint = new InetSocketAddress("localhost", 9999);
         
         NioCoServerSocket.start(new Connector(), endpoint);

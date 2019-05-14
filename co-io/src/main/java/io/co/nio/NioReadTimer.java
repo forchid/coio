@@ -17,7 +17,6 @@
 package io.co.nio;
 
 import io.co.TimeRunner;
-import io.co.util.IoUtils;
 
 /**
  * @author little-pan
@@ -46,14 +45,8 @@ public class NioReadTimer extends TimeRunner {
             return;
         }
         
-        try {
-            this.timeout = true;
-            scheduler.execute(corChan.coRunner, source);
-        } catch (final Exception e){
-            NioCoScheduler.debug("Uncaught exception", e);
-            IoUtils.close(source);
-            return;
-        }
+        this.timeout = true;
+        scheduler.execute(corChan.coRunner, source);
     }
     
 }

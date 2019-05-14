@@ -401,8 +401,14 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     protected void execute(CoroutineRunner coRunner, NioCoChannel<?> coChannel) {
-        if(coRunner.execute() == false){
-            this.close(coChannel);
+        try {
+            if(coRunner.execute() == false){
+                IoUtils.close(coChannel);
+            }
+            return;
+        } catch (final CoroutineException coe) {
+            debug("Coroutine executes error", coe);
+            IoUtils.close(coChannel);
         }
     }
     
@@ -525,12 +531,12 @@ public class NioCoScheduler implements CoScheduler {
             if(runat <= cur){
                 try {
                     timer.run();
+                    if(!timer.next()){
+                        recycleTimerSlot(i);
+                    }
                 } catch (final Exception e){
                     timer.cancel();
                     debug("Timer runs error", e);
-                }
-                if(!timer.next()){
-                    recycleTimerSlot(i);
                 }
                 continue;
             }
