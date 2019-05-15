@@ -22,6 +22,8 @@ import java.net.SocketAddress;
 import com.offbynull.coroutines.user.Continuation;
 import com.offbynull.coroutines.user.Coroutine;
 
+import io.co.nio.NioCoServerSocket;
+
 /**
  * The server socket based on coroutines.
  * 
@@ -74,6 +76,26 @@ public abstract class CoServerSocket implements CoChannel {
     @Override
     public void close(){
         this.coScheduler.close(this);
+    }
+    
+    public static void startAndServe(Coroutine coConnector, SocketAddress endpoint)
+            throws CoIOException {
+        NioCoServerSocket.startAndServe(coConnector, endpoint);
+    }
+    
+    public static void startAndServe(Coroutine coConnector, SocketAddress endpoint, int backlog)
+            throws CoIOException {
+        NioCoServerSocket.startAndServe(coConnector, endpoint, backlog);
+    }
+    
+    public static void startAndServe(Coroutine coAcceptor, Coroutine coConnector, SocketAddress endpoint)
+            throws CoIOException {
+        NioCoServerSocket.startAndServe(coAcceptor, coConnector, endpoint);
+    }
+    
+    public static void startAndServe(Coroutine coAcceptor, Coroutine coConnector, SocketAddress endpoint,
+            int backlog) throws CoIOException {
+        NioCoServerSocket.startAndServe(coAcceptor, coConnector, endpoint, backlog);
     }
     
 }

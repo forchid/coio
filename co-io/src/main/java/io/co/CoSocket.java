@@ -21,6 +21,8 @@ import java.net.SocketAddress;
 
 import com.offbynull.coroutines.user.Coroutine;
 
+import io.co.nio.NioCoSocket;
+
 /**
  * A socket based on coroutines.
  * 
@@ -71,6 +73,16 @@ public abstract class CoSocket implements CoChannel {
     @Override
     public void close() {
         this.coScheduler.close(this);
+    }
+    
+    public static void startAndServe(Coroutine coConnector, SocketAddress remote)
+            throws CoIOException {
+        NioCoSocket.startAndServe(coConnector, remote);
+    }
+    
+    public static void startAndServe(Coroutine coConnector, SocketAddress remote, int timeout)
+            throws CoIOException {
+        NioCoSocket.startAndServe(coConnector, remote, timeout);
     }
     
 }

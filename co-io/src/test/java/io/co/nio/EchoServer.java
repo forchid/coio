@@ -18,6 +18,7 @@ package io.co.nio;
 
 import io.co.CoInputStream;
 import io.co.CoOutputStream;
+import io.co.CoServerSocket;
 import io.co.CoSocket;
 
 import java.net.InetSocketAddress;
@@ -40,7 +41,7 @@ public class EchoServer {
         System.setProperty("io.co.maxConnections", "2500");
         SocketAddress endpoint = new InetSocketAddress("localhost", 9999);
         
-        NioCoServerSocket.start(new Connector(), endpoint);
+        CoServerSocket.startAndServe(new Connector(), endpoint);
         System.out.println("Bye");
     }
 

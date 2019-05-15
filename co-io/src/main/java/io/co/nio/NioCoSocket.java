@@ -140,11 +140,12 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
         return this.channel + "";
     }
     
-    public static void start(Coroutine coConnector, SocketAddress remote) throws CoIOException {
-        start(coConnector, remote, 0);
+    public static void startAndServe(Coroutine coConnector, SocketAddress remote)
+            throws CoIOException {
+        startAndServe(coConnector, remote, 0);
     }
     
-    public static void start(Coroutine coConnector, SocketAddress remote, int timeout)
+    public static void startAndServe(Coroutine coConnector, SocketAddress remote, int timeout)
             throws CoIOException {
         final NioCoScheduler scheduler = new NioCoScheduler();
         NioCoSocket socket = null;
@@ -153,7 +154,7 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
             socket = new NioCoSocket(coConnector, scheduler);
             socket.connect(remote, timeout);
             // Boot itself
-            scheduler.start();
+            scheduler.startAndServe();
             failed = false;
         } catch(final IOException cause){
             throw new CoIOException(cause);

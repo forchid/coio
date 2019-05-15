@@ -56,7 +56,7 @@ public class EchoClient {
                     Thread.sleep(100L);
                 }
             }
-            scheduler.start();
+            scheduler.startAndServe();
         } finally {
             scheduler.shutdown();
         }

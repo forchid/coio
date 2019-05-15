@@ -82,9 +82,9 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     @Override
-    public void start() {
+    public void startAndServe() {
         initialize();
-        schedule();
+        serve();
     }
     
     @Override
@@ -291,7 +291,7 @@ public class NioCoScheduler implements CoScheduler {
         }
     }
     
-    protected void schedule(){
+    protected void serve(){
         for(;;){
             final Selector selector = this.selector;
             try {

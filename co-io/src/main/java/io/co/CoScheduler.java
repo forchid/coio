@@ -35,7 +35,7 @@ public interface CoScheduler {
     int INIT_CONNECTIONS = Integer.getInteger("io.co.initConnections", 1024);
     int MAX_CONNECTIONS  = Integer.getInteger("io.co.maxConnections", 102400);
     
-    void start();
+    void startAndServe();
     
     CoSocket accept(Continuation co, CoServerSocket coServerSocket)
         throws CoIOException;

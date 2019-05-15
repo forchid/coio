@@ -91,22 +91,23 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
         super.close();
     }
     
-    public static void start(Coroutine coConnector, SocketAddress endpoint)throws CoIOException {
-        start(coConnector, endpoint, BACKLOG_DEFAULT);
-    }
-    
-    public static void start(Coroutine coConnector, SocketAddress endpoint, int backlog)
+    public static void startAndServe(Coroutine coConnector, SocketAddress endpoint)
             throws CoIOException {
-        start(new DefaultNioCoAcceptor(), coConnector, endpoint, backlog);
+        startAndServe(coConnector, endpoint, BACKLOG_DEFAULT);
     }
     
-    public static void start(Coroutine coAcceptor, Coroutine coConnector, SocketAddress endpoint)
+    public static void startAndServe(Coroutine coConnector, SocketAddress endpoint, int backlog)
             throws CoIOException {
-        start(coAcceptor, coConnector, endpoint, BACKLOG_DEFAULT);
+        startAndServe(new DefaultNioCoAcceptor(), coConnector, endpoint, backlog);
     }
     
-    public static void start(Coroutine coAcceptor, Coroutine coConnector, SocketAddress endpoint, int backlog)
-        throws CoIOException {
+    public static void startAndServe(Coroutine coAcceptor, Coroutine coConnector, SocketAddress endpoint)
+            throws CoIOException {
+        startAndServe(coAcceptor, coConnector, endpoint, BACKLOG_DEFAULT);
+    }
+    
+    public static void startAndServe(Coroutine coAcceptor, Coroutine coConnector, SocketAddress endpoint,
+            int backlog) throws CoIOException {
         final NioCoScheduler scheduler = new NioCoScheduler();
         NioCoServerSocket ssSocket = null;
         boolean failed = true;
@@ -114,7 +115,7 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
             ssSocket = new NioCoServerSocket(coAcceptor, coConnector, scheduler);
             ssSocket.bind(endpoint, backlog);
             // Boot itself
-            scheduler.start();
+            scheduler.startAndServe();
             failed = false;
         } catch(final IOException cause){
             throw new CoIOException(cause);
