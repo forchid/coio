@@ -25,6 +25,7 @@ import java.net.SocketAddress;
 import java.nio.channels.ServerSocketChannel;
 
 import com.offbynull.coroutines.user.Coroutine;
+import com.offbynull.coroutines.user.CoroutineRunner;
 
 /**
  * A NIO implementation of CoServerSocket.
@@ -37,6 +38,7 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
     
     final ServerSocketChannel channel;
     final int id;
+    final CoroutineRunner coRunner;
     
     public NioCoServerSocket(Coroutine coConnector, NioCoScheduler coScheduler) {
         this(new DefaultNioCoAcceptor(), coConnector, coScheduler);
@@ -51,8 +53,9 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
             ssChan = ServerSocketChannel.open();
             ssChan.configureBlocking(false);
             this.channel = ssChan;
+            this.coRunner = new CoroutineRunner(coAcceptor);
             this.id = coScheduler.nextSlot();
-            coScheduler.register(this, coAcceptor);
+            coScheduler.register(this);
             failed = false;
         } catch (final IOException cause){
             throw new CoIOException(cause);
@@ -70,6 +73,11 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
     @Override
     public ServerSocketChannel channel(){
         return this.channel;
+    }
+    
+    @Override
+    public CoroutineRunner coRunner() {
+        return this.coRunner;
     }
 
     @Override
@@ -117,5 +125,5 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
             scheduler.shutdown();
         }
     }
-
+    
 }

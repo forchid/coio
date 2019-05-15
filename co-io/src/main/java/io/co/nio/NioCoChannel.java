@@ -18,6 +18,8 @@ package io.co.nio;
 
 import java.nio.channels.Channel;
 
+import com.offbynull.coroutines.user.CoroutineRunner;
+
 import io.co.CoChannel;
 
 /**
@@ -31,5 +33,7 @@ interface NioCoChannel<S extends Channel> extends CoChannel {
     int id();
 
     S channel();
+    
+    CoroutineRunner coRunner();
     
 }

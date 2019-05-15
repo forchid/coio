@@ -29,6 +29,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 
 import com.offbynull.coroutines.user.Coroutine;
+import com.offbynull.coroutines.user.CoroutineRunner;
 
 /**
  * The NIO implementation of CoSocket.
@@ -46,6 +47,7 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     
     private TimeRunner connectionTimer;
     private TimeRunner readTimer;
+    final CoroutineRunner coRunner;
     
     public NioCoSocket(Coroutine coConnector, SocketChannel channel, NioCoScheduler coScheduler) {
         super(coConnector, coScheduler);
@@ -55,8 +57,9 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
         final Selector selector = coScheduler.selector;
         this.in = new NioCoInputStream(this, this.channel, selector);
         this.out= new NioCoOutputStream(this, this.channel,selector);
+        this.coRunner = new CoroutineRunner(coConnector);
         this.id = coScheduler.nextSlot();
-        coScheduler.register(this, coConnector);
+        coScheduler.register(this);
     }
     
     public NioCoSocket(Coroutine coConnector, NioCoScheduler coScheduler) {
@@ -72,8 +75,9 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
             final Selector selector = coScheduler.selector;
             this.in = new NioCoInputStream(this, this.channel, selector);
             this.out= new NioCoOutputStream(this, this.channel,selector);
+            this.coRunner = new CoroutineRunner(coConnector);
             this.id = coScheduler.nextSlot();
-            coScheduler.register(this, coConnector);
+            coScheduler.register(this);
             failed = false;
         } catch (final IOException cause) {
             throw new CoIOException(cause);
@@ -91,6 +95,11 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     @Override
     public SocketChannel channel(){
         return this.channel;
+    }
+    
+    @Override
+    public CoroutineRunner coRunner() {
+        return this.coRunner;
     }
 
     @Override
@@ -192,5 +201,5 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
         }
         return null;
     }
-
+    
 }

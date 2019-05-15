@@ -39,14 +39,8 @@ public class NioReadTimer extends TimeRunner {
         
         final NioCoScheduler scheduler = (NioCoScheduler)this.scheduler;
         final NioCoSocket source = (NioCoSocket)source();
-        final CoRunnerChannel corChan = scheduler.runnerChannel(source);
-        if(corChan == null){
-            this.cancel();
-            return;
-        }
-        
         this.timeout = true;
-        scheduler.execute(corChan.coRunner, source);
+        scheduler.execute(source.coRunner(), source);
     }
     
 }
