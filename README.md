@@ -10,7 +10,7 @@ public class EchoServer {
         System.setProperty("io.co.maxConnections", "2500");
         SocketAddress endpoint = new InetSocketAddress("localhost", 9999);
         
-        NioCoServerSocket.start(new Connector(), endpoint);
+        CoServerSocket.startAndServe(new Connector(), endpoint);
         System.out.println("Bye");
     }
 
@@ -73,7 +73,7 @@ public class EchoClient {
                     Thread.sleep(100L);
                 }
             }
-            scheduler.start();
+            scheduler.startAndServe();
         } finally {
             scheduler.shutdown();
         }
