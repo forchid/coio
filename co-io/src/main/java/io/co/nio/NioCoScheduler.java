@@ -580,7 +580,9 @@ public class NioCoScheduler implements CoScheduler {
         if(ok){
             child.selector.wakeup();
             debug("postSocket()");
+            return;
         }
+        IoUtils.close(channel);
     }
 
     int nextTimerSlot() {
