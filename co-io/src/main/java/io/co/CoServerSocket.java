@@ -23,6 +23,7 @@ import com.offbynull.coroutines.user.Continuation;
 import com.offbynull.coroutines.user.Coroutine;
 
 import io.co.nio.NioCoServerSocket;
+import io.co.util.ReflectUtils;
 
 /**
  * The server socket based on coroutines.
@@ -35,23 +36,26 @@ public abstract class CoServerSocket implements CoChannel {
     
     protected static final int BACKLOG_DEFAULT = 150;
     
+    protected final Class<? extends Coroutine> acceptorClass;
+    protected final Class<? extends Coroutine> connectorClass;
     protected final Coroutine coAcceptor;
-    protected final Coroutine coConnector;
     
     protected final CoScheduler coScheduler;
     
-    protected CoServerSocket(Coroutine coAcceptor, Coroutine coConnector, CoScheduler coScheduler) {
-        this.coAcceptor = coAcceptor;
-        this.coConnector= coConnector;
-        this.coScheduler= coScheduler;
+    protected CoServerSocket(Class<? extends Coroutine> acceptorClass, 
+            Class<? extends Coroutine> connectorClass, CoScheduler coScheduler) {
+        this.acceptorClass = acceptorClass;
+        this.connectorClass= connectorClass;
+        this.coScheduler   = coScheduler;
+        this.coAcceptor    = ReflectUtils.newObject(acceptorClass);
     }
     
     public Coroutine getCoAcceptor(){
         return this.coAcceptor;
     }
     
-    public Coroutine getCoConnector(){
-        return this.coConnector;
+    public Class<? extends Coroutine> getConnectorClass(){
+        return this.connectorClass;
     }
     
     public CoScheduler getCoScheduler(){
@@ -78,24 +82,26 @@ public abstract class CoServerSocket implements CoChannel {
         this.coScheduler.close(this);
     }
     
-    public static void startAndServe(Coroutine coConnector, SocketAddress endpoint)
+    public static void startAndServe(Class<? extends Coroutine> connectorClass, SocketAddress endpoint)
             throws CoIOException {
-        NioCoServerSocket.startAndServe(coConnector, endpoint);
+        NioCoServerSocket.startAndServe(connectorClass, endpoint);
     }
     
-    public static void startAndServe(Coroutine coConnector, SocketAddress endpoint, int backlog)
+    public static void startAndServe(Class<? extends Coroutine> connectorClass, SocketAddress endpoint, int backlog)
             throws CoIOException {
-        NioCoServerSocket.startAndServe(coConnector, endpoint, backlog);
+        NioCoServerSocket.startAndServe(connectorClass, endpoint, backlog);
     }
     
-    public static void startAndServe(Coroutine coAcceptor, Coroutine coConnector, SocketAddress endpoint)
+    public static void startAndServe(Class<? extends Coroutine> acceptorClass, 
+            Coroutine coConnector, SocketAddress endpoint)
             throws CoIOException {
-        NioCoServerSocket.startAndServe(coAcceptor, coConnector, endpoint);
+        NioCoServerSocket.startAndServe(acceptorClass, coConnector, endpoint);
     }
     
-    public static void startAndServe(Coroutine coAcceptor, Coroutine coConnector, SocketAddress endpoint,
+    public static void startAndServe(Class<? extends Coroutine> acceptorClass, 
+            Class<? extends Coroutine> connectorClass, SocketAddress endpoint,
             int backlog) throws CoIOException {
-        NioCoServerSocket.startAndServe(coAcceptor, coConnector, endpoint, backlog);
+        NioCoServerSocket.startAndServe(acceptorClass, connectorClass, endpoint, backlog);
     }
     
 }

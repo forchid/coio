@@ -43,7 +43,7 @@ public class EchoServer {
         System.setProperty("io.co.debug", "false");
         SocketAddress endpoint = new InetSocketAddress("localhost", 9999);
         
-        CoServerSocket.startAndServe(new Connector(), endpoint);
+        CoServerSocket.startAndServe(Connector.class, endpoint);
         System.out.println("Bye");
     }
 

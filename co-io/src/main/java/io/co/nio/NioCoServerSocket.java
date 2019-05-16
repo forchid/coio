@@ -40,12 +40,13 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
     final int id;
     final CoroutineRunner coRunner;
     
-    public NioCoServerSocket(Coroutine coConnector, NioCoScheduler coScheduler) {
-        this(new DefaultNioCoAcceptor(), coConnector, coScheduler);
+    public NioCoServerSocket(Class<? extends Coroutine> connectorClass, NioCoScheduler coScheduler) {
+        this(DefaultNioCoAcceptor.class, connectorClass, coScheduler);
     }
     
-    public NioCoServerSocket(Coroutine coAcceptor, Coroutine coConnector, NioCoScheduler coScheduler) {
-        super(coAcceptor, coConnector, coScheduler);
+    public NioCoServerSocket(Class<? extends Coroutine> acceptorClass, 
+            Class<? extends Coroutine> connectorClass, NioCoScheduler coScheduler) {
+        super(acceptorClass, connectorClass, coScheduler);
         
         ServerSocketChannel ssChan = null;
         boolean failed = true;
@@ -91,28 +92,29 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
         super.close();
     }
     
-    public static void startAndServe(Coroutine coConnector, SocketAddress endpoint)
+    public static void startAndServe(Class<? extends Coroutine> connectorClass, SocketAddress endpoint)
             throws CoIOException {
-        startAndServe(coConnector, endpoint, BACKLOG_DEFAULT);
+        startAndServe(connectorClass, endpoint, BACKLOG_DEFAULT);
     }
     
-    public static void startAndServe(Coroutine coConnector, SocketAddress endpoint, int backlog)
+    public static void startAndServe(Class<? extends Coroutine> connectorClass, SocketAddress endpoint, int backlog)
             throws CoIOException {
-        startAndServe(new DefaultNioCoAcceptor(), coConnector, endpoint, backlog);
+        startAndServe(DefaultNioCoAcceptor.class, connectorClass, endpoint, backlog);
     }
     
-    public static void startAndServe(Coroutine coAcceptor, Coroutine coConnector, SocketAddress endpoint)
-            throws CoIOException {
-        startAndServe(coAcceptor, coConnector, endpoint, BACKLOG_DEFAULT);
+    public static void startAndServe(Class<? extends Coroutine> acceptorClass, 
+            Class<? extends Coroutine> connectorClass, SocketAddress endpoint) throws CoIOException {
+        startAndServe(acceptorClass, connectorClass, endpoint, BACKLOG_DEFAULT);
     }
     
-    public static void startAndServe(Coroutine coAcceptor, Coroutine coConnector, SocketAddress endpoint,
-            int backlog) throws CoIOException {
+    public static void startAndServe(Class<? extends Coroutine> acceptorClass, 
+            Class<? extends Coroutine> connectorClass, SocketAddress endpoint, int backlog)
+                    throws CoIOException {
         final NioCoScheduler scheduler = new NioCoScheduler();
         NioCoServerSocket ssSocket = null;
         boolean failed = true;
         try {
-            ssSocket = new NioCoServerSocket(coAcceptor, coConnector, scheduler);
+            ssSocket = new NioCoServerSocket(acceptorClass, connectorClass, scheduler);
             ssSocket.bind(endpoint, backlog);
             // Boot itself
             scheduler.startAndServe();
