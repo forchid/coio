@@ -98,7 +98,7 @@ public class EchoClient {
                 final CoInputStream in = sock.getInputStream();
                 final CoOutputStream out = sock.getOutputStream();
                 
-                final byte[] b = new byte[512];
+                final byte[] b = new byte[256];
                 final int requests = 10;
                 for(int i = 0; i < requests; ++i) {
                     out.write(co, b);

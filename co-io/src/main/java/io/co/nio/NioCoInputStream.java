@@ -83,16 +83,53 @@ public class NioCoInputStream extends CoInputStream {
             return buf.get();
         }
 
+        buf.clear();
+        final int i = read(co, buf);
+        if(i == -1) {
+            return -1;
+        }
+        buf.flip();
+        return buf.get();
+    }
+    
+    public int read(Continuation co, byte[] b, int off, int len) throws CoIOException {
+        if(len < 0) {
+            throw new IllegalArgumentException("len " + len);
+        }
+        
+        final int n = Math.min(len, available(co));
+        if(n > 0){
+            this.buffer.get(b, off, n);
+            off += n;
+            len -= n;
+        }
+        if(len == 0){
+            return n;
+        }
+        
+        // Pass through buffer
+        final ByteBuffer newBuf = ByteBuffer.wrap(b, off, len);
+        final int i = read(co, newBuf);
+        if(i == -1){
+            if(n == 0){
+                return -1;
+            }
+            return n;
+        }
+        
+        return (n + i);
+    }
+    
+    protected int read(Continuation co, ByteBuffer buf) throws CoIOException {
         final SocketChannel chan = this.channel;
         final SelectionKey selKey = IoUtils.enableRead(chan, this.selector, this.coSocket);
         try {
-            buf.clear();
             for(;;){
-                int n = chan.read(buf);
-                if(n == -1) {
+                int i = chan.read(buf);
+                if(i == -1) {
                     return -1;
                 }
-                if(n == 0) {
+                if(i == 0) {
                     final NioReadTimer timer = this.coSocket.startReadTimer();
                     co.suspend();
                     if(timer != null && timer.timeout){
@@ -101,15 +138,16 @@ public class NioCoInputStream extends CoInputStream {
                     this.coSocket.cancelReadTimer();
                     continue;
                 }
+                int n = i;
                 // Read more
                 for(; buf.hasRemaining(); ){
-                    n = chan.read(buf);
-                    if(n == 0 || n == -1){
+                    i = chan.read(buf);
+                    if(i == 0 || i == -1){
                         break;
                     }
+                    n += i;
                 }
-                buf.flip();
-                return buf.get();
+                return n;
             }
         } catch (final IOException cause){
             throw new CoIOException(cause);
