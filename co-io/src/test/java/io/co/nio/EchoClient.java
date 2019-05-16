@@ -38,20 +38,26 @@ import com.offbynull.coroutines.user.Coroutine;
 public class EchoClient {
 
     public static void main(String[] args) throws Exception {
-        System.setProperty("io.co.soTimeout", "3000");
-        System.setProperty("io.co.debug", "false");
+        System.setProperty("io.co.soTimeout", "30000");
+        System.setProperty("io.co.debug", "true");
+        
+        final int conns;
+        if(args.length > 0){
+            conns = Integer.parseInt(args[0]);
+        }else{
+            conns = 10000;
+        }
         
         final long ts = System.currentTimeMillis();
         final SocketAddress remote = new InetSocketAddress("localhost", 9999);
         
-        final NioCoScheduler scheduler = new NioCoScheduler();
-        final int conns = 10000;
+        final NioCoScheduler scheduler = new NioCoScheduler(conns, conns, 0);
         final MutableInteger success = new MutableInteger();
         try {
             for(int i = 0; i < conns; ++i){
                 final Coroutine connector = new Connector(i, success, scheduler);
                 final CoSocket sock = new NioCoSocket(connector, scheduler);
-                sock.connect(remote, 6000);
+                sock.connect(remote, 30000);
             }
             scheduler.startAndServe();
         } finally {
@@ -82,6 +88,7 @@ public class EchoClient {
                 final Object ctx = co.getContext();
                 if(ctx instanceof Throwable){
                     // Connect fail
+                    ((Throwable)ctx).printStackTrace();
                     return;
                 }
                 

@@ -19,6 +19,7 @@ package io.co.nio;
 import io.co.CoIOException;
 import io.co.CoInputStream;
 import io.co.CoOutputStream;
+import io.co.CoScheduler;
 import io.co.CoSocket;
 import io.co.TimeRunner;
 import io.co.util.IoUtils;
@@ -149,7 +150,9 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     
     public static void startAndServe(Coroutine coConnector, SocketAddress remote, int timeout)
             throws CoIOException {
-        final NioCoScheduler scheduler = new NioCoScheduler();
+        final int initConns = CoScheduler.INIT_CONNECTIONS;
+        final int maxConns  = CoScheduler.MAX_CONNECTIONS;
+        final NioCoScheduler scheduler = new NioCoScheduler(initConns, maxConns, 0);
         NioCoSocket socket = null;
         boolean failed = true;
         try {

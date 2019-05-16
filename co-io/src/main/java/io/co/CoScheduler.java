@@ -34,6 +34,7 @@ public interface CoScheduler {
     
     int INIT_CONNECTIONS = Integer.getInteger("io.co.initConnections", 1024);
     int MAX_CONNECTIONS  = Integer.getInteger("io.co.maxConnections", 102400);
+    int CHILD_COUNT      = Integer.getInteger("io.co.scheduler.childCount", 2);
     
     void startAndServe();
     
