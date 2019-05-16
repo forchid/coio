@@ -38,7 +38,8 @@ public class EchoServer {
 
     public static void main(String[] args) {
         System.setProperty("io.co.soTimeout", "8000");
-        System.setProperty("io.co.maxConnections", "2500");
+        System.setProperty("io.co.maxConnections", "10000");
+        System.setProperty("io.co.debug", "false");
         SocketAddress endpoint = new InetSocketAddress("localhost", 9999);
         
         CoServerSocket.startAndServe(new Connector(), endpoint);
@@ -64,7 +65,7 @@ public class EchoServer {
                         final int n = in.read(co, b, i, b.length-i);
                         if(n == -1) {
                             //System.out.println("Server: EOF");
-                            break;
+                            return;
                         }
                         i += n;
                     }

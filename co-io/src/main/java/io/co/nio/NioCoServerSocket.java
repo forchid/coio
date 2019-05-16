@@ -108,10 +108,12 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
     
     public static void startAndServe(Coroutine coAcceptor, Coroutine coConnector, SocketAddress endpoint,
             int backlog) throws CoIOException {
-        final NioCoScheduler scheduler = new NioCoScheduler();
+        final NioCoScheduler childScheduler = new NioCoScheduler();
+        NioCoScheduler scheduler   = null;
         NioCoServerSocket ssSocket = null;
         boolean failed = true;
         try {
+            scheduler = new NioCoScheduler(childScheduler);
             ssSocket = new NioCoServerSocket(coAcceptor, coConnector, scheduler);
             ssSocket.bind(endpoint, backlog);
             // Boot itself
@@ -122,8 +124,11 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
         } finally {
             if(failed){
                 IoUtils.close(ssSocket);
+                childScheduler.shutdown();
             }
-            scheduler.shutdown();
+            if(scheduler != null){
+                scheduler.shutdown();
+            }
         }
     }
     

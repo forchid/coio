@@ -14,93 +14,89 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library.
  */
-package io.co.nio;
+package io.oio;
 
-import io.co.CoInputStream;
-import io.co.CoOutputStream;
-import io.co.CoSocket;
 import io.co.util.IoUtils;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.EOFException;
+import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.net.SocketAddress;
-
-import com.offbynull.coroutines.user.Continuation;
-import com.offbynull.coroutines.user.Coroutine;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * A simple CoSocket demo.
+ * A simple Socket demo.
  * 
  * @author little-pan
- * @since 2019-05-13
+ * @since 2019-05-16
  *
  */
 public class EchoClient {
+    static final int soTimeout = 3000;
 
     public static void main(String[] args) throws Exception {
-        System.setProperty("io.co.soTimeout", "3000");
-        System.setProperty("io.co.debug", "false");
         
         final long ts = System.currentTimeMillis();
         final SocketAddress remote = new InetSocketAddress("localhost", 9999);
         
-        final NioCoScheduler scheduler = new NioCoScheduler();
-        final int conns = 10000;
-        final MutableInteger success = new MutableInteger();
+        final int conns = 10000, threads = 1000;
+        final ExecutorService executors = Executors.newFixedThreadPool(threads);
+        final AtomicInteger success = new AtomicInteger();
         try {
             for(int i = 0; i < conns; ++i){
-                final Coroutine connector = new Connector(i, success, scheduler);
-                final CoSocket sock = new NioCoSocket(connector, scheduler);
-                sock.connect(remote, 6000);
+                final Runnable connector = new Connector(i, success, remote);
+                executors.execute(connector);
             }
-            scheduler.startAndServe();
         } finally {
-            scheduler.shutdown();
+            executors.shutdown();
+            executors.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS);
         }
         
         System.out.println(String.format("Bye: conns = %s, success = %s, time = %sms",
               conns, success, System.currentTimeMillis() - ts));
     }
     
-    static class Connector implements Coroutine {
-        private static final long serialVersionUID = 1L;
+    static class Connector implements Runnable {
         
-        final NioCoScheduler scheduler;
-        final MutableInteger success;
+        final AtomicInteger success;
         final int id;
+        final SocketAddress remote;
         
-        Connector(int id, MutableInteger success, NioCoScheduler scheduler){
-            this.scheduler = scheduler;
+        Connector(int id, AtomicInteger success, SocketAddress remote){
             this.success = success;
             this.id = id;
+            this.remote = remote;
         }
 
         @Override
-        public void run(Continuation co) throws Exception {
-            CoSocket sock = null;
+        public void run() {
+            Socket sock = null;
             try {
-                final Object ctx = co.getContext();
-                if(ctx instanceof Throwable){
-                    // Connect fail
-                    return;
-                }
+                sock = new Socket();
+                sock.connect(remote);
+                sock.setSoTimeout(soTimeout);
                 
-                sock = (CoSocket)ctx;
                 //System.out.println("Connected: " + sock);
                 final long ts = System.currentTimeMillis();
-                final CoInputStream in = sock.getInputStream();
-                final CoOutputStream out = sock.getOutputStream();
+                final BufferedInputStream in = new BufferedInputStream(sock.getInputStream());
+                final BufferedOutputStream out = new BufferedOutputStream(sock.getOutputStream());
                 
                 final byte[] b = new byte[512];
                 final int requests = 10;
                 for(int i = 0; i < requests; ++i) {
-                    out.write(co, b);
                     final int wbytes = b.length;
-                    out.flush(co);
+                    out.write(b);
+                    out.flush();
                     
                     int rbytes = 0;
                     for(; rbytes < wbytes;) {
-                        final int n = in.read(co, b, rbytes, b.length - rbytes);
+                        final int n = in.read(b, rbytes, b.length - rbytes);
                         if(n == -1) {
                             throw new EOFException();
                         }
@@ -109,31 +105,16 @@ public class EchoClient {
                     
                     //System.out.println(String.format("wbytes %d, rbytes %d ", wbytes, rbytes));
                 }
-                success.value++;
+                success.incrementAndGet();
                 System.out.println(String.format("Client-%05d: time %dms", 
                      id, (System.currentTimeMillis() - ts)));
+            } catch(final IOException e){
+                // ignore
             } finally {
                 IoUtils.close(sock);
-                scheduler.shutdown();
             }
         }
         
-    }
-    
-    static class MutableInteger {
-        int value;
-        
-        MutableInteger(){
-            this(0);
-        }
-        
-        MutableInteger(int value){
-            this.value = value;
-        }
-        
-        public String toString(){
-            return value + "";
-        }
     }
 
 }

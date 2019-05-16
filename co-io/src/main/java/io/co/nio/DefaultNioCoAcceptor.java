@@ -16,6 +16,8 @@
  */
 package io.co.nio;
 
+import java.nio.channels.ServerSocketChannel;
+
 import io.co.CoScheduler;
 
 import com.offbynull.coroutines.user.Continuation;
@@ -39,6 +41,8 @@ public class DefaultNioCoAcceptor implements Coroutine {
     public void run(final Continuation co) throws Exception {
         final NioCoServerSocket ssSocket = (NioCoServerSocket)co.getContext();
         if(ssSocket != null){
+            final ServerSocketChannel chan = ssSocket.channel();
+            NioCoScheduler.debug("Server listen on %s", chan.getLocalAddress());
             final CoScheduler scheduler = ssSocket.getCoScheduler();
             for(;!scheduler.isShutdown();){
                 ssSocket.accept(co);
