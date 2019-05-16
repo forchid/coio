@@ -6,11 +6,13 @@ An IO library based on coroutines
 public class EchoServer {
 
     public static void main(String[] args) {
-        System.setProperty("io.co.soTimeout", "8000");
-        System.setProperty("io.co.maxConnections", "2500");
+        System.setProperty("io.co.soTimeout", "30000");
+        System.setProperty("io.co.maxConnections", "10000");
+        System.setProperty("io.co.scheduler.childCount", "2");
+        System.setProperty("io.co.debug", "false");
         SocketAddress endpoint = new InetSocketAddress("localhost", 9999);
         
-        CoServerSocket.startAndServe(new Connector(), endpoint);
+        CoServerSocket.startAndServe(Connector.class, endpoint);
         System.out.println("Bye");
     }
 
@@ -26,14 +28,14 @@ public class EchoServer {
             final CoOutputStream out = sock.getOutputStream();
             
             try {
-                final byte[] b = new byte[512];
+                final byte[] b = new byte[256];
                 for(;;) {
                     int i = 0;
                     for(; i < b.length;) {
                         final int n = in.read(co, b, i, b.length-i);
                         if(n == -1) {
                             //System.out.println("Server: EOF");
-                            break;
+                            return;
                         }
                         i += n;
                     }
@@ -55,23 +57,26 @@ public class EchoServer {
 public class EchoClient {
 
     public static void main(String[] args) throws Exception {
-        System.setProperty("io.co.soTimeout", "3000");
-        System.setProperty("io.co.debug", "false");
+        System.setProperty("io.co.soTimeout", "30000");
+        System.setProperty("io.co.debug", "true");
+        
+        final int conns;
+        if(args.length > 0){
+            conns = Integer.parseInt(args[0]);
+        }else{
+            conns = 10000;
+        }
         
         final long ts = System.currentTimeMillis();
         final SocketAddress remote = new InetSocketAddress("localhost", 9999);
         
-        final NioCoScheduler scheduler = new NioCoScheduler();
-        final int conns = 3000;
+        final NioCoScheduler scheduler = new NioCoScheduler(conns, conns, 0);
         final MutableInteger success = new MutableInteger();
         try {
             for(int i = 0; i < conns; ++i){
                 final Coroutine connector = new Connector(i, success, scheduler);
                 final CoSocket sock = new NioCoSocket(connector, scheduler);
-                sock.connect(remote, 6000);
-                if(i % 100 == 0){
-                    Thread.sleep(100L);
-                }
+                sock.connect(remote, 30000);
             }
             scheduler.startAndServe();
         } finally {
@@ -102,8 +107,7 @@ public class EchoClient {
                 final Object ctx = co.getContext();
                 if(ctx instanceof Throwable){
                     // Connect fail
-                    final Throwable cause = (Throwable)ctx;
-                    cause.printStackTrace();
+                    ((Throwable)ctx).printStackTrace();
                     return;
                 }
                 
@@ -113,7 +117,7 @@ public class EchoClient {
                 final CoInputStream in = sock.getInputStream();
                 final CoOutputStream out = sock.getOutputStream();
                 
-                final byte[] b = new byte[512];
+                final byte[] b = new byte[256];
                 final int requests = 10;
                 for(int i = 0; i < requests; ++i) {
                     out.write(co, b);
