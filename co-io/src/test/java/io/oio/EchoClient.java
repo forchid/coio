@@ -45,7 +45,7 @@ public class EchoClient {
         final long ts = System.currentTimeMillis();
         final SocketAddress remote = new InetSocketAddress("localhost", 9999);
         
-        final int conns = 10000, threads = 1000;
+        final int conns = 3000, threads = 3000;
         final ExecutorService executors = Executors.newFixedThreadPool(threads);
         final AtomicInteger success = new AtomicInteger();
         try {
@@ -88,7 +88,7 @@ public class EchoClient {
                 final BufferedOutputStream out = new BufferedOutputStream(sock.getOutputStream());
                 
                 final byte[] b = new byte[512];
-                final int requests = 10;
+                final int requests = 100;
                 for(int i = 0; i < requests; ++i) {
                     final int wbytes = b.length;
                     out.write(b);

@@ -54,7 +54,7 @@ public class NioCoScheduler implements CoScheduler {
     private TimeRunner[] timers;
     private int maxTimerSlot;
     
-    protected volatile Selector selector;
+    protected final Selector selector;
     protected volatile boolean shutdown;
     protected volatile boolean stopped;
     
@@ -95,12 +95,16 @@ public class NioCoScheduler implements CoScheduler {
         this.timers    = new TimeRunner[1024];
         this.syncQueue = new LinkedBlockingQueue<>();
         this.childs    = new NioCoScheduler[childCount];
+        
+        try {
+            this.selector = Selector.open();
+        } catch (final IOException cause){
+            throw new CoIOException(cause);
+        }
     }
     
     @Override
     public void startAndServe() {
-        initialize();
-        
         final NioCoScheduler[] childs = this.childs;
         final int minConns = this.chans.length;
         final int maxConnx = this.maxConnections;
@@ -217,7 +221,6 @@ public class NioCoScheduler implements CoScheduler {
     
     @Override
     public void execute(final Runnable task) throws CoIOException {
-        this.initialize();
         final boolean ok = this.syncQueue.offer(task);
         if(ok){
             this.selector.wakeup();
@@ -352,16 +355,6 @@ public class NioCoScheduler implements CoScheduler {
         }
     }
     
-    protected synchronized void initialize() throws CoIOException {
-        try {
-            if(this.selector == null){
-                this.selector = Selector.open();
-            }
-        } catch (final IOException cause){
-            throw new CoIOException(cause);
-        }
-    }
-    
     protected void serve(){
         for(;;){
             final Selector selector = this.selector;
@@ -390,17 +383,25 @@ public class NioCoScheduler implements CoScheduler {
                 }
                 
                 // Execute runner
-                executeSyncRunners();
+                final int execTimes = executeSyncRunners();
                 
                 // Do selection
-                final long minRunat = minRunat();
+                final long minRunat = Math.max(100L, minRunat());
                 debug("minRunat = %s", minRunat);
-                if(selector.select(minRunat) == 0){
+                if (selector.select(minRunat) == 0) {
                     continue;
                 }
                 
+                final int maxIoTimes;
+                if (execTimes == 0) {
+                    maxIoTimes = 1000000;
+                } else {
+                    maxIoTimes = 10000 * execTimes;
+                }
+                
                 final Set<SelectionKey> selKeys = selector.selectedKeys();
-                for(Iterator<SelectionKey> i = selKeys.iterator(); i.hasNext(); i.remove()){
+                final Iterator<SelectionKey> i = selKeys.iterator();
+                for(int ioTimes = 0; i.hasNext(); i.remove()){
                     NioCoChannel<?> coChan = null;
                     boolean failed = false;
                     try {
@@ -420,9 +421,14 @@ public class NioCoScheduler implements CoScheduler {
                         }
                         if(key.isReadable()){
                             doRead(key);
+                            ++ioTimes;
                         }
                         if(key.isValid() && key.isWritable()){
                             doWrite(key);
+                            ++ioTimes;
+                        }
+                        if(ioTimes >= maxIoTimes) {
+                            break;
                         }
                     } catch (final CoroutineException e){
                         failed = true;
@@ -440,9 +446,11 @@ public class NioCoScheduler implements CoScheduler {
         }
     }
     
-    private void executeSyncRunners() {
+    private int executeSyncRunners() {
         final BlockingQueue<Runnable> queue = this.syncQueue;
-        for(;;){
+        final int max = 50;
+        int i = 0;
+        for(; i < max; ){
             final Runnable runner = queue.poll();
             if(runner == null){
                 break;
@@ -450,11 +458,13 @@ public class NioCoScheduler implements CoScheduler {
             
             try {
                 runner.run();
+                ++i;
             } catch (final CoroutineException e){
                 final Throwable cause = e.getCause();
                 debug("Uncaught exception in coroutine", cause);
             }
         }
+        return i;
     }
 
     protected static void debug(final String message, final Throwable cause){
@@ -555,7 +565,6 @@ public class NioCoScheduler implements CoScheduler {
             try {
                 chan = ssChan.accept();
                 chan.configureBlocking(false);
-                chan.socket().setKeepAlive(true);
                 chan.socket().setTcpNoDelay(true);
                 
                 // 1. Create coSocket

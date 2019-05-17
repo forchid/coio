@@ -68,10 +68,8 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
         try {
             chan = SocketChannel.open();
             chan.configureBlocking(false);
-            chan.socket().setKeepAlive(true);
             chan.socket().setTcpNoDelay(true);
             this.channel = chan;
-            coScheduler.initialize();
             final Selector selector = coScheduler.selector;
             this.in = new NioCoInputStream(this, this.channel, selector);
             this.out= new NioCoOutputStream(this, this.channel,selector);

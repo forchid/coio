@@ -59,7 +59,7 @@ public class EchoServer {
             final CoOutputStream out = sock.getOutputStream();
             
             try {
-                final byte[] b = new byte[256];
+                final byte[] b = new byte[512];
                 for(;;) {
                     int i = 0;
                     for(; i < b.length;) {

@@ -42,7 +42,7 @@ public class EchoClient {
         System.setProperty("io.co.soTimeout", "30000");
         System.setProperty("io.co.debug", "false");
         
-        final int conns, schedCount = 3;
+        final int conns, schedCount = 2;
         if(args.length > 0){
             conns = Integer.parseInt(args[0]);
         }else{
@@ -65,7 +65,7 @@ public class EchoClient {
                     sched.startAndServe();
                 }
             };
-            //t.start();
+            t.start();
         }
         
         final AtomicInteger success = new AtomicInteger();
@@ -75,9 +75,6 @@ public class EchoClient {
                 final Coroutine connector = new Connector(i, success, scheduler);
                 final CoSocket sock = new NioCoSocket(connector, scheduler);
                 sock.connect(remote, 30000);
-            }
-            for(final Thread t: schedThreads){
-                t.start();
             }
         } finally {
             for(final Thread t : schedThreads){
@@ -119,8 +116,8 @@ public class EchoClient {
                 final CoInputStream in = sock.getInputStream();
                 final CoOutputStream out = sock.getOutputStream();
                 
-                final byte[] b = new byte[256];
-                final int requests = 10;
+                final byte[] b = new byte[512];
+                final int requests = 100;
                 for(int i = 0; i < requests; ++i) {
                     out.write(co, b);
                     final int wbytes = b.length;
