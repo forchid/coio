@@ -24,6 +24,7 @@ import io.co.util.IoUtils;
 import java.io.EOFException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.offbynull.coroutines.user.Continuation;
 import com.offbynull.coroutines.user.Coroutine;
@@ -39,9 +40,9 @@ public class EchoClient {
 
     public static void main(String[] args) throws Exception {
         System.setProperty("io.co.soTimeout", "30000");
-        System.setProperty("io.co.debug", "true");
+        System.setProperty("io.co.debug", "false");
         
-        final int conns;
+        final int conns, schedCount = 3;
         if(args.length > 0){
             conns = Integer.parseInt(args[0]);
         }else{
@@ -51,17 +52,34 @@ public class EchoClient {
         final long ts = System.currentTimeMillis();
         final SocketAddress remote = new InetSocketAddress("localhost", 9999);
         
-        final NioCoScheduler scheduler = new NioCoScheduler(conns, conns, 0);
-        final MutableInteger success = new MutableInteger();
+        // Parallel scheduler
+        final NioCoScheduler[] schedulers = new NioCoScheduler[schedCount];
+        final Thread[] schedThreads = new Thread[schedulers.length];
+        for(int i = 0; i < schedulers.length; ++i){
+            final int j = i;
+            final NioCoScheduler sched = schedulers[j] = new NioCoScheduler(conns, conns, 0);
+            final Thread t = schedThreads[j] = new Thread(){
+                @Override
+                public void run(){
+                    setName("Scheduler-"+j);
+                    sched.startAndServe();
+                }
+            };
+            t.start();
+        }
+        
+        final AtomicInteger success = new AtomicInteger();
         try {
             for(int i = 0; i < conns; ++i){
+                final NioCoScheduler scheduler = schedulers[i%schedulers.length];
                 final Coroutine connector = new Connector(i, success, scheduler);
                 final CoSocket sock = new NioCoSocket(connector, scheduler);
                 sock.connect(remote, 30000);
             }
-            scheduler.startAndServe();
         } finally {
-            scheduler.shutdown();
+            for(final Thread t : schedThreads){
+                t.join();
+            }
         }
         
         System.out.println(String.format("Bye: conns = %s, success = %s, time = %sms",
@@ -72,12 +90,12 @@ public class EchoClient {
         private static final long serialVersionUID = 1L;
         
         final NioCoScheduler scheduler;
-        final MutableInteger success;
+        final AtomicInteger success;
         final int id;
         
-        Connector(int id, MutableInteger success, NioCoScheduler scheduler){
+        Connector(int id, AtomicInteger success, NioCoScheduler scheduler){
             this.scheduler = scheduler;
-            this.success = success;
+            this.success   = success;
             this.id = id;
         }
 
@@ -116,9 +134,9 @@ public class EchoClient {
                     
                     //System.out.println(String.format("wbytes %d, rbytes %d ", wbytes, rbytes));
                 }
-                success.value++;
-                System.out.println(String.format("Client-%05d: time %dms", 
-                     id, (System.currentTimeMillis() - ts)));
+                success.incrementAndGet();
+                System.out.println(String.format("[%s]Client-%05d: time %dms", 
+                     Thread.currentThread().getName(), id, (System.currentTimeMillis() - ts)));
             } finally {
                 IoUtils.close(sock);
                 scheduler.shutdown();
@@ -126,21 +144,4 @@ public class EchoClient {
         }
         
     }
-    
-    static class MutableInteger {
-        int value;
-        
-        MutableInteger(){
-            this(0);
-        }
-        
-        MutableInteger(int value){
-            this.value = value;
-        }
-        
-        public String toString(){
-            return value + "";
-        }
-    }
-
 }

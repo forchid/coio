@@ -129,26 +129,34 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     @Override
-    public void bind(CoServerSocket coServerSocket, SocketAddress endpoint, int backlog)
+    public void bind(final CoServerSocket coServerSocket, final SocketAddress endpoint, final int backlog)
         throws IOException {
-        
-        final NioCoServerSocket serverSocket = (NioCoServerSocket)coServerSocket;
-        final ServerSocketChannel ssChan = serverSocket.channel();
-        boolean failed = true;
-        try {
-            this.initialize();
-            
-            ssChan.bind(endpoint, backlog);
-            ssChan.register(this.selector, SelectionKey.OP_ACCEPT, serverSocket);
-            final CoroutineRunner coRunner = serverSocket.coRunner();
-            coRunner.setContext(serverSocket);
-            coRunner.execute();
-            failed = false;
-        } finally {
-            if(failed){
-                IoUtils.close(serverSocket);
+        final NioCoScheduler self = this;
+        self.execute(new Runnable(){
+            @Override
+            public void run() {
+                final NioCoServerSocket serverSocket = (NioCoServerSocket)coServerSocket;
+                final ServerSocketChannel ssChan = serverSocket.channel();
+                boolean failed = true;
+                try {
+                    self.register(serverSocket);
+                    ssChan.bind(endpoint, backlog);
+                    ssChan.register(self.selector, SelectionKey.OP_ACCEPT, serverSocket);
+                    final CoroutineRunner coRunner = serverSocket.coRunner();
+                    coRunner.setContext(serverSocket);
+                    coRunner.execute();
+                    failed = false;
+                } catch(final IOException e){
+                    final CoroutineRunner coRunner = serverSocket.coRunner();
+                    coRunner.setContext(e);
+                    self.execute(coRunner, serverSocket);
+                } finally {
+                    if(failed){
+                        IoUtils.close(serverSocket);
+                    }
+                }
             }
-        }
+        });
     }
     
     @Override
@@ -157,21 +165,32 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     @Override
-    public void connect(CoSocket coSocket, SocketAddress remote, int timeout)
+    public void connect(final CoSocket coSocket, final SocketAddress remote, final int timeout)
             throws IOException {
-        final NioCoSocket socket = (NioCoSocket)coSocket;
-        boolean failed = true;
-        try {
-            final SocketChannel chan = socket.channel();
-            chan.register(this.selector, SelectionKey.OP_CONNECT, coSocket);
-            chan.connect(remote);
-            socket.startConnectionTimer(timeout);
-            failed = false;
-        } finally {
-            if(failed){
-                this.close(coSocket);
+        final NioCoScheduler self = this;
+        self.execute(new Runnable(){
+            @Override
+            public void run(){
+                final NioCoSocket socket = (NioCoSocket)coSocket;
+                boolean failed = true;
+                try {
+                    final SocketChannel chan = socket.channel();
+                    self.register(socket);
+                    chan.register(self.selector, SelectionKey.OP_CONNECT, coSocket);
+                    chan.connect(remote);
+                    socket.startConnectionTimer(timeout);
+                    failed = false;
+                } catch(final IOException e){
+                    final CoroutineRunner coRunner = socket.coRunner();
+                    coRunner.setContext(e);
+                    self.execute(coRunner, socket);
+                } finally {
+                    if(failed){
+                        self.close(coSocket);
+                    }
+                }
             }
-        }
+        });
     }
     
     @Override
@@ -197,12 +216,27 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     @Override
+    public void execute(final Runnable task) throws CoIOException {
+        this.initialize();
+        final boolean ok = this.syncQueue.offer(task);
+        if(ok){
+            this.selector.wakeup();
+            return;
+        }
+        throw new CoIOException("Execution queue full");
+    }
+    
+    @Override
     public void close(CoChannel coChannel) {
         if(coChannel == null){
             return;
         }
         
         final NioCoChannel<?> chan = (NioCoChannel<?>)coChannel;
+        if(chan.id() == -1){
+            return;
+        }
+        
         final NioCoChannel<?> scChan = slotCoChannel(chan);
         if(scChan != null && scChan == chan) {
             final int slot = chan.id();
@@ -238,7 +272,9 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     NioCoScheduler register(final NioCoChannel<?> coChannel){
-        final int slot = coChannel.id();
+        final int slot = nextSlot();
+        coChannel.id(slot);
+        
         final NioCoChannel<?> oldChan = this.chans[slot];
         if(oldChan != null && oldChan.isOpen()){
             throw new IllegalStateException(String.format("Channel slot %s used", slot));
@@ -316,7 +352,7 @@ public class NioCoScheduler implements CoScheduler {
         }
     }
     
-    protected void initialize() throws CoIOException {
+    protected synchronized void initialize() throws CoIOException {
         try {
             if(this.selector == null){
                 this.selector = Selector.open();
@@ -691,5 +727,5 @@ public class NioCoScheduler implements CoScheduler {
         }
         
     }
-
+    
 }

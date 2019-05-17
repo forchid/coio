@@ -44,7 +44,7 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     final SocketChannel channel;
     final CoInputStream in;
     final CoOutputStream out;
-    final int id;
+    private int id = -1;
     
     private TimeRunner connectionTimer;
     private TimeRunner readTimer;
@@ -54,13 +54,10 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
         super(coConnector, coScheduler);
         
         this.channel = channel;
-        coScheduler.initialize();
         final Selector selector = coScheduler.selector;
         this.in = new NioCoInputStream(this, this.channel, selector);
         this.out= new NioCoOutputStream(this, this.channel,selector);
         this.coRunner = new CoroutineRunner(coConnector);
-        this.id = coScheduler.nextSlot();
-        coScheduler.register(this);
     }
     
     public NioCoSocket(Coroutine coConnector, NioCoScheduler coScheduler) {
@@ -91,8 +88,18 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
         }
     }
     
+    @Override
     public int id(){
         return this.id;
+    }
+    
+    @Override
+    public NioCoSocket id(int id){
+        if(this.id >= 0){
+            throw new IllegalStateException("id had been set");
+        }
+        this.id = id;
+        return this;
     }
     
     @Override

@@ -56,6 +56,8 @@ public interface CoScheduler {
     
     void schedule(CoSocket coSocket, Runnable task, long delay, long period);
     
+    void execute(Runnable task) throws CoIOException;
+    
     void close(CoChannel coChannel);
     
     boolean isStopped();

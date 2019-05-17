@@ -37,8 +37,8 @@ import com.offbynull.coroutines.user.CoroutineRunner;
 public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<ServerSocketChannel> {
     
     final ServerSocketChannel channel;
-    final int id;
     final CoroutineRunner coRunner;
+    private int id = -1;
     
     public NioCoServerSocket(Class<? extends Coroutine> connectorClass, NioCoScheduler coScheduler) {
         this(DefaultNioCoAcceptor.class, connectorClass, coScheduler);
@@ -55,8 +55,6 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
             ssChan.configureBlocking(false);
             this.channel = ssChan;
             this.coRunner = new CoroutineRunner(coAcceptor);
-            this.id = coScheduler.nextSlot();
-            coScheduler.register(this);
             failed = false;
         } catch (final IOException cause){
             throw new CoIOException(cause);
@@ -67,8 +65,18 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
         }
     }
     
+    @Override
     public int id(){
         return this.id;
+    }
+    
+    @Override
+    public NioCoServerSocket id(int id){
+        if(this.id >= 0){
+            throw new IllegalStateException("id had been set");
+        }
+        this.id = id;
+        return this;
     }
     
     @Override
