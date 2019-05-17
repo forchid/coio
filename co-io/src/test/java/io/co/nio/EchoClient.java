@@ -65,7 +65,7 @@ public class EchoClient {
                     sched.startAndServe();
                 }
             };
-            t.start();
+            //t.start();
         }
         
         final AtomicInteger success = new AtomicInteger();
@@ -75,6 +75,9 @@ public class EchoClient {
                 final Coroutine connector = new Connector(i, success, scheduler);
                 final CoSocket sock = new NioCoSocket(connector, scheduler);
                 sock.connect(remote, 30000);
+            }
+            for(final Thread t: schedThreads){
+                t.start();
             }
         } finally {
             for(final Thread t : schedThreads){

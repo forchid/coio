@@ -76,8 +76,6 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
             this.in = new NioCoInputStream(this, this.channel, selector);
             this.out= new NioCoOutputStream(this, this.channel,selector);
             this.coRunner = new CoroutineRunner(coConnector);
-            this.id = coScheduler.nextSlot();
-            coScheduler.register(this);
             failed = false;
         } catch (final IOException cause) {
             throw new CoIOException(cause);
