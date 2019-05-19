@@ -16,8 +16,8 @@
  */
 package io.co.nio;
 
-import io.co.CoTimerTask;
 import io.co.util.IoUtils;
+import static io.co.nio.NioCoScheduler.*;
 
 import java.net.SocketTimeoutException;
 
@@ -28,14 +28,21 @@ import com.offbynull.coroutines.user.CoroutineRunner;
  * @since 2019-05-14
  *
  */
-public class NioConnectionTimer extends CoTimerTask {
+public class NioConnectionTimer extends NioCoTimer {
     
     public NioConnectionTimer(NioCoSocket source, int timeout){
-        super(source.getCoScheduler().nextTimerSlot(), source, timeout);
+        super(source, timeout);
+    }
+    
+    @Override
+    public void cancel() {
+        super.cancel();
+        debug("Cancel: %s", this);
     }
     
     @Override
     public void run() {
+        debug("Running: %s", this);
         if(this.isCanceled()){
             return;
         }

@@ -21,7 +21,6 @@ import io.co.CoInputStream;
 import io.co.CoOutputStream;
 import io.co.CoScheduler;
 import io.co.CoSocket;
-import io.co.CoTimerTask;
 import io.co.util.IoUtils;
 
 import java.io.IOException;
@@ -46,8 +45,8 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     final CoOutputStream out;
     private int id = -1;
     
-    private CoTimerTask connectionTimer;
-    private CoTimerTask readTimer;
+    private NioCoTimer connectionTimer;
+    private NioCoTimer readTimer;
     final CoroutineRunner coRunner;
     
     public NioCoSocket(Coroutine coConnector, SocketChannel channel, NioCoScheduler coScheduler) {
@@ -148,7 +147,16 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     
     @Override
     public String toString(){
-        return this.channel + "";
+        final String clazz =  this.getClass().getSimpleName();
+        try {
+            if(this.isOpen()) {
+                return String.format("%s[id=%d#%d, local=%s, remote=%s]", clazz, this.id, this.hashCode(),
+                    this.channel.getLocalAddress(), this.channel.getRemoteAddress());
+            }
+        } catch (final IOException e) {
+            // ignore
+        }
+        return String.format("%s[id=%d#%d]", clazz, this.id, this.hashCode());
     }
     
     public static void startAndServe(Coroutine coConnector, SocketAddress remote)

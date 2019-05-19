@@ -26,6 +26,7 @@ import java.net.SocketAddress;
 
 import com.offbynull.coroutines.user.Continuation;
 import com.offbynull.coroutines.user.Coroutine;
+import static io.co.nio.NioCoScheduler.*;
 
 /**
  * A simple CoServerSocket demo.
@@ -64,7 +65,9 @@ public class EchoServer {
                 for(;;) {
                     int i = 0;
                     for(; i < b.length;) {
+                        debug("read: offset %s", i);
                         final int n = in.read(co, b, i, b.length-i);
+                        debug("read: bytes %s", n);
                         if(n == -1) {
                             //System.out.println("Server: EOF");
                             return;
@@ -74,6 +77,7 @@ public class EchoServer {
                     //System.out.println("Server: rbytes "+i);
                     out.write(co, b, 0, i);
                     out.flush(co);
+                    debug("flush: bytes %s", i);
                     
                     // Business time
                     sock.getCoScheduler().await(co, 0L);

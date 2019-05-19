@@ -29,6 +29,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.offbynull.coroutines.user.Continuation;
 import com.offbynull.coroutines.user.Coroutine;
 
+import static io.co.nio.NioCoScheduler.*;
+
 /**
  * A simple CoSocket demo.
  * 
@@ -44,12 +46,13 @@ public class EchoClient {
         System.setProperty("io.co.soTimeout", "30000");
         final String host = System.getProperty("io.co.host", "localhost");
         
-        final int conns, schedCount = 2;
+        final int conns, schedCount;
         if(args.length > 0){
             conns = Integer.parseInt(args[0]);
         }else{
             conns = 250;
         }
+        schedCount = Math.min(2, conns);
         
         final long ts = System.currentTimeMillis();
         final SocketAddress remote = new InetSocketAddress(host, 9999);
@@ -116,7 +119,7 @@ public class EchoClient {
                 }
                 
                 sock = (CoSocket)ctx;
-                //System.out.println("Connected: " + sock);
+                debug("Connected: %s", sock);
                 final long ts = System.currentTimeMillis();
                 final CoInputStream in = sock.getInputStream();
                 final CoOutputStream out = sock.getOutputStream();

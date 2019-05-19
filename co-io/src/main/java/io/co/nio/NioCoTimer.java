@@ -14,18 +14,24 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library.
  */
-package io.co;
+package io.co.nio;
+
+import io.co.CoScheduler;
+import io.co.CoSocket;
+import static io.co.nio.NioCoScheduler.*;
+
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 /**
- * A coroutine timer runnable.
- * 
  * @author little-pan
- * @since 2019-05-14
+ * @since 2019-05-19
  *
  */
-public class CoTimerTask implements Runnable {
+public class NioCoTimer implements Runnable {
     
-    public final int id;
+    int id = -1;
     
     protected final CoSocket source;
     protected final CoScheduler scheduler;
@@ -36,16 +42,15 @@ public class CoTimerTask implements Runnable {
     protected long runat;
     protected final long period;
     
-    public CoTimerTask(int id, CoSocket source, long delay){
-        this(id, source, null, delay,  0L);
+    public NioCoTimer(NioCoSocket source, long delay){
+        this(source, null, delay,  0L);
     }
     
-    public CoTimerTask(int id, CoSocket source, Runnable task, long delay){
-        this(id, source, task, delay, 0L);
+    public NioCoTimer(NioCoSocket source, Runnable task, long delay){
+        this(source, task, delay, 0L);
     }
     
-    public CoTimerTask(int id, CoSocket source, Runnable task, long delay, long period){
-        this.id = id;
+    public NioCoTimer(NioCoSocket source, Runnable task, long delay, long period){
         this.task = task;
         this.scheduler = source.getCoScheduler();
         this.source = source;
@@ -74,22 +79,38 @@ public class CoTimerTask implements Runnable {
         return true;
     }
     
-    public void cancel(){
-        this.canceled = true;
-    }
-    
     public boolean isCanceled(){
         return this.canceled;
     }
     
+    public void cancel() {
+        this.canceled = true;
+        debug("Cancel: %s", this);
+    }
+    
     @Override
     public void run() {
-        if(this.isCanceled() || this.task == null) {
+        debug("Running: %s", this);
+        if(this.isCanceled()) {
+            return;
+        }
+        
+        if(this.task == null){
+            final NioCoSocket sock = (NioCoSocket)this.source();
+            this.next();
+            sock.getCoScheduler().resume(sock);
             return;
         }
         
         this.task.run();
-        next();
+        this.next();
     }
     
+    public String toString() {
+        final DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        final String runat  = df.format(new Date(this.runat));
+        return String.format("%s[id=%s#%s, source=%s, canceled=%s, runat=%s, period=%sms]", 
+                getClass(), this.id, this.hashCode(), this.source, this.canceled, runat, this.period);
+    }
+
 }

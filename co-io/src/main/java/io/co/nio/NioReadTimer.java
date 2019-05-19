@@ -16,23 +16,30 @@
  */
 package io.co.nio;
 
-import io.co.CoTimerTask;
+import static io.co.nio.NioCoScheduler.*;
 
 /**
  * @author little-pan
  * @since 2019-05-14
  *
  */
-public class NioReadTimer extends CoTimerTask {
+public class NioReadTimer extends NioCoTimer {
     
     boolean timeout;
     
     public NioReadTimer(NioCoSocket source, int timeout){
-        super(source.getCoScheduler().nextTimerSlot(), source, timeout);
+        super(source, timeout);
+    }
+    
+    @Override
+    public void cancel() {
+        super.cancel();
+        debug("Cancel: %s", this);
     }
     
     @Override
     public void run() {
+        debug("Running: %s", this);
         if(this.isCanceled()){
             return;
         }
