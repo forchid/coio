@@ -380,7 +380,10 @@ public class NioCoScheduler implements CoScheduler {
         for(int i = 0; i < n; ++i){
             final NioCoTimer timer = timers[i];
             if(timer != null && timer.source() == coChannel){
-                timer.cancel();
+                timers[i] = null;
+                if(!timer.isCanceled()) {
+                    timer.cancel();
+                }
             }
         }
     }
