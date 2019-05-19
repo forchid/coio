@@ -23,6 +23,7 @@ import java.text.*;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.offbynull.coroutines.user.Continuation;
 import com.offbynull.coroutines.user.Coroutine;
@@ -46,6 +47,15 @@ import io.co.util.ReflectUtils;
  *
  */
 public class NioCoScheduler implements CoScheduler {
+    static final int ioRatio;
+    
+    static {
+        ioRatio = Integer.getInteger("io.co.ioRatio", 50);
+        if(ioRatio <= 0 || ioRatio > 100) {
+            final String error = "ioRatio "+ ioRatio + ", expect 0 < ioRatio <= 100";
+            throw new ExceptionInInitializerError(error);
+        }
+    }
     
     private NioCoChannel<?>[] chans;
     private final int maxConnections;
@@ -55,6 +65,7 @@ public class NioCoScheduler implements CoScheduler {
     private int maxTimerSlot;
     
     protected final Selector selector;
+    protected final AtomicBoolean wakeup;
     protected volatile boolean shutdown;
     protected volatile boolean stopped;
     
@@ -97,6 +108,7 @@ public class NioCoScheduler implements CoScheduler {
         this.childs    = new NioCoScheduler[childCount];
         
         try {
+            this.wakeup = new AtomicBoolean();
             this.selector = Selector.open();
         } catch (final IOException cause){
             throw new CoIOException(cause);
@@ -223,6 +235,7 @@ public class NioCoScheduler implements CoScheduler {
         final boolean ok = this.syncQueue.offer(task);
         if(ok){
             this.selector.wakeup();
+            this.wakeup.set(true);
             return;
         }
         throw new CoIOException("Execution queue full");
@@ -356,76 +369,35 @@ public class NioCoScheduler implements CoScheduler {
     
     protected void serve(){
         for(;;){
-            final Selector selector = this.selector;
             try {
                 // Shutdown handler
-                if(this.shutdown){
-                    final NioCoChannel<?>[] chans = this.chans;
-                    int actives = 0;
-                    for(int i = 0, n = chans.length; i < n; ++i){
-                        final NioCoChannel<?> runChan = chans[i];
-                        if(runChan == null){
-                            continue;
-                        }
-                        final Channel chan = runChan.channel();
-                        if(chan instanceof ServerSocketChannel){
-                            this.close(runChan);
-                            continue;
-                        }
-                        ++actives;
-                    }
-                    if(actives == 0){
-                        this.stop();
-                        // Exit normally
-                        break;
-                    }
+                if(tryShutdown()) {
+                    break;
                 }
                 
-                // Execute runner
-                executeSyncRunners();
-                
                 // Do selection
-                final long minRunat = minRunat();
-                debug("minRunat = %s", minRunat);
-                if (selector.select(minRunat) == 0) {
+                if(select() == 0) {
+                    execSyncRunners(-1L);
                     continue;
                 }
                 
-                final Set<SelectionKey> selKeys = selector.selectedKeys();
-                final Iterator<SelectionKey> i = selKeys.iterator();
-                for(; i.hasNext(); i.remove()){
-                    NioCoChannel<?> coChan = null;
-                    boolean failed = false;
+                // Process & execute runners
+                if (ioRatio == 100) {
                     try {
-                        final SelectionKey key = i.next();
-                        if(!key.isValid()){
-                            failed = true;
-                            continue;
-                        }
-                        coChan = (NioCoChannel<?>)key.attachment();
-                        if(key.isAcceptable()){
-                            doAccept(key);
-                            continue;
-                        }
-                        if(key.isConnectable()){
-                            doConnect(key);
-                            continue;
-                        }
-                        if(key.isReadable()){
-                            doRead(key);
-                        }
-                        if(key.isValid() && key.isWritable()){
-                            doWrite(key);
-                        }
-                    } catch (final CoroutineException e){
-                        failed = true;
-                        debug("Uncaught exception in coroutine", e.getCause());
+                        processIO();
                     } finally {
-                        if(failed){
-                            IoUtils.close(coChan);
-                        }
+                        execSyncRunners(-1L);
+                    }
+                } else {
+                    final long ioStart = System.nanoTime();
+                    try {
+                        processIO();
+                    } finally {
+                        final long ioTime = System.nanoTime() - ioStart;
+                        execSyncRunners(ioTime * (100 - ioRatio) / ioRatio);
                     }
                 }
+                
             } catch (final Throwable uncaught){
                 this.stop();
                 throw new CoIOException("Scheduler fatal", uncaught);
@@ -433,24 +405,105 @@ public class NioCoScheduler implements CoScheduler {
         }
     }
     
-    private int executeSyncRunners() {
+    private int select() throws IOException {
+        final Selector selector = this.selector;
+        
+        final long minRunat = minRunat();
+        debug("minRunat = %s", minRunat);
+        
+        if(hasRunners() || this.wakeup.compareAndSet(true, false)) {
+            return selector.selectNow();
+        }
+        return selector.select(minRunat);
+    }
+    
+    private boolean hasRunners() {
+        return (this.syncQueue.peek() != null);
+    }
+    
+    private boolean tryShutdown() {
+        if(this.shutdown){
+            final NioCoChannel<?>[] chans = this.chans;
+            int actives = 0;
+            for(int i = 0, n = chans.length; i < n; ++i){
+                final NioCoChannel<?> runChan = chans[i];
+                if(runChan == null){
+                    continue;
+                }
+                final Channel chan = runChan.channel();
+                if(chan instanceof ServerSocketChannel){
+                    this.close(runChan);
+                    continue;
+                }
+                ++actives;
+            }
+            if(actives == 0){
+                this.stop();
+                // Exit normally
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    private void processIO() throws IOException {
+        Set<SelectionKey> selKeys = this.selector.selectedKeys();
+        final Iterator<SelectionKey> i = selKeys.iterator();
+        for(; i.hasNext(); i.remove()){
+            NioCoChannel<?> coChan = null;
+            boolean failed = false;
+            try {
+                final SelectionKey key = i.next();
+                if(!key.isValid()){
+                    failed = true;
+                    continue;
+                }
+                coChan = (NioCoChannel<?>)key.attachment();
+                if(key.isAcceptable()){
+                    doAccept(key);
+                    continue;
+                }
+                if(key.isConnectable()){
+                    doConnect(key);
+                    continue;
+                }
+                if(key.isReadable()){
+                    doRead(key);
+                }
+                if(key.isValid() && key.isWritable()){
+                    doWrite(key);
+                }
+            } catch (final CoroutineException e){
+                failed = true;
+                debug("Uncaught exception in coroutine", e.getCause());
+            } finally {
+                if(failed){
+                    IoUtils.close(coChan);
+                }
+            }
+        }
+    }
+    
+    private void execSyncRunners(final long runNanos) {
         final BlockingQueue<Runnable> queue = this.syncQueue;
-        int i = 0;
+        final long deadNano = System.nanoTime() + runNanos;
         for(;;){
-            final Runnable runner = queue.poll();
-            if(runner == null){
-                break;
+            if(runNanos > 0L && System.nanoTime() >= deadNano) {
+                return;
             }
             
             try {
+                final Runnable runner = queue.poll();
+                if(runner == null){
+                    return;
+                }
+                
                 runner.run();
-                ++i;
             } catch (final CoroutineException e){
                 final Throwable cause = e.getCause();
                 debug("Uncaught exception in coroutine", cause);
             }
         }
-        return i;
     }
 
     protected static void debug(final String message, final Throwable cause){
