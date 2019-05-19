@@ -38,14 +38,23 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  */
 public class EchoClient {
-    static final int soTimeout = 3000;
+    static final int soTimeout = 30000;
+    static final boolean debug = Boolean.getBoolean("io.co.debug");
 
     public static void main(String[] args) throws Exception {
         
         final long ts = System.currentTimeMillis();
-        final SocketAddress remote = new InetSocketAddress("localhost", 9999);
+        final String host = System.getProperty("io.co.host", "localhost");
+        final SocketAddress remote = new InetSocketAddress(host, 9999);
         
-        final int conns = 3000, threads = 3000;
+        final int conns, threads;
+        if(args.length > 0){
+            conns = Integer.parseInt(args[0]);
+        }else{
+            conns = 250;
+        }
+        threads = conns;
+        
         final ExecutorService executors = Executors.newFixedThreadPool(threads);
         final AtomicInteger success = new AtomicInteger();
         try {
@@ -109,7 +118,9 @@ public class EchoClient {
                 System.out.println(String.format("Client-%05d: time %dms", 
                      id, (System.currentTimeMillis() - ts)));
             } catch(final IOException e){
-                // ignore
+                if(debug) {
+                    e.printStackTrace();
+                }
             } finally {
                 IoUtils.close(sock);
             }

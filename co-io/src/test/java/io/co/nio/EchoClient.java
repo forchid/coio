@@ -37,20 +37,22 @@ import com.offbynull.coroutines.user.Coroutine;
  *
  */
 public class EchoClient {
+    
+    static final boolean debug = Boolean.getBoolean("io.co.debug");
 
     public static void main(String[] args) throws Exception {
         System.setProperty("io.co.soTimeout", "30000");
-        System.setProperty("io.co.debug", "false");
+        final String host = System.getProperty("io.co.host", "localhost");
         
         final int conns, schedCount = 2;
         if(args.length > 0){
             conns = Integer.parseInt(args[0]);
         }else{
-            conns = 10000;
+            conns = 250;
         }
         
         final long ts = System.currentTimeMillis();
-        final SocketAddress remote = new InetSocketAddress("localhost", 9999);
+        final SocketAddress remote = new InetSocketAddress(host, 9999);
         
         // Parallel scheduler
         final NioCoScheduler[] schedulers = new NioCoScheduler[schedCount];
@@ -106,7 +108,10 @@ public class EchoClient {
                 final Object ctx = co.getContext();
                 if(ctx instanceof Throwable){
                     // Connect fail
-                    ((Throwable)ctx).printStackTrace();
+                    if(debug) {
+                        final Throwable cause = (Throwable)ctx; 
+                        cause.printStackTrace();
+                    }
                     return;
                 }
                 

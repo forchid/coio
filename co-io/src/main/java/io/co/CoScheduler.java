@@ -50,13 +50,15 @@ public interface CoScheduler {
     void connect(CoSocket coSocket, SocketAddress remote, int timeout)
         throws IOException;
     
-    void schedule(TimeRunner timeRunner);
+    void schedule(CoTimerTask timeRunner);
     
     void schedule(CoSocket coSocket, Runnable task, long delay);
     
     void schedule(CoSocket coSocket, Runnable task, long delay, long period);
     
     void execute(Runnable task) throws CoIOException;
+    
+    void await(Continuation co, long millis);
     
     void close(CoChannel coChannel);
     
@@ -65,4 +67,5 @@ public interface CoScheduler {
     boolean isShutdown();
     
     void shutdown();
+    
 }

@@ -17,13 +17,13 @@
 package io.co;
 
 /**
- * A timing runnable.
+ * A coroutine timer runnable.
  * 
  * @author little-pan
  * @since 2019-05-14
  *
  */
-public class TimeRunner implements Runnable {
+public class CoTimerTask implements Runnable {
     
     public final int id;
     
@@ -36,20 +36,20 @@ public class TimeRunner implements Runnable {
     protected long runat;
     protected final long period;
     
-    public TimeRunner(int id, CoScheduler scheduler, CoSocket source, long runat){
-        this(id, null, scheduler, source, runat, 0L);
+    public CoTimerTask(int id, CoSocket source, long delay){
+        this(id, source, null, delay,  0L);
     }
     
-    public TimeRunner(int id, Runnable task, CoScheduler scheduler, CoSocket source, long runat){
-        this(id, task, scheduler, source, runat, 0L);
+    public CoTimerTask(int id, CoSocket source, Runnable task, long delay){
+        this(id, source, task, delay, 0L);
     }
     
-    public TimeRunner(int id, Runnable task, CoScheduler scheduler, CoSocket source, long runat, long period){
+    public CoTimerTask(int id, CoSocket source, Runnable task, long delay, long period){
         this.id = id;
         this.task = task;
-        this.scheduler = scheduler;
+        this.scheduler = source.getCoScheduler();
         this.source = source;
-        this.runat  = runat;
+        this.runat  = System.currentTimeMillis() + delay;
         this.period = period;
     }
     
@@ -81,13 +81,15 @@ public class TimeRunner implements Runnable {
     public boolean isCanceled(){
         return this.canceled;
     }
-
+    
     @Override
     public void run() {
-        if(this.task == null || this.isCanceled()){
+        if(this.isCanceled() || this.task == null) {
             return;
         }
+        
         this.task.run();
+        next();
     }
     
 }

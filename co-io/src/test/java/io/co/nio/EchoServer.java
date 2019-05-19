@@ -41,7 +41,8 @@ public class EchoServer {
         System.setProperty("io.co.maxConnections", "10000");
         System.setProperty("io.co.scheduler.childCount", "2");
         System.setProperty("io.co.debug", "false");
-        SocketAddress endpoint = new InetSocketAddress("localhost", 9999);
+        final String host = System.getProperty("io.co.host", "localhost");
+        SocketAddress endpoint = new InetSocketAddress(host, 9999);
         
         CoServerSocket.startAndServe(Connector.class, endpoint);
         System.out.println("Bye");
@@ -73,6 +74,9 @@ public class EchoServer {
                     //System.out.println("Server: rbytes "+i);
                     out.write(co, b, 0, i);
                     out.flush(co);
+                    
+                    // Business time
+                    sock.getCoScheduler().await(co, 0L);
                 }
             } finally {
                 sock.close();

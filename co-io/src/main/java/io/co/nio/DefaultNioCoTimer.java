@@ -20,27 +20,41 @@ import io.co.CoTimerTask;
 
 /**
  * @author little-pan
- * @since 2019-05-14
+ * @since 2019-05-19
  *
  */
-public class NioReadTimer extends CoTimerTask {
+public class DefaultNioCoTimer extends CoTimerTask {
     
-    boolean timeout;
+    public DefaultNioCoTimer(NioCoSocket source, long delay) {
+        this(source, null, delay, 0L);
+    }
     
-    public NioReadTimer(NioCoSocket source, int timeout){
-        super(source.getCoScheduler().nextTimerSlot(), source, timeout);
+    public DefaultNioCoTimer(NioCoSocket source, Runnable task, long delay) {
+        this(source, task, delay, 0L);
+    }
+
+    
+    public DefaultNioCoTimer(NioCoSocket source, Runnable task, long delay, long period) {
+        super(source.getCoScheduler().nextTimerSlot(), source, task, delay, period);
     }
     
     @Override
     public void run() {
-        if(this.isCanceled()){
+        if(this.isCanceled()) {
             return;
         }
         
-        final NioCoScheduler scheduler = (NioCoScheduler)this.scheduler;
-        final NioCoSocket source = (NioCoSocket)source();
-        this.timeout = true;
-        scheduler.resume(source);
+        try {
+            if(this.task == null){
+                final NioCoSocket sock = (NioCoSocket)this.source();
+                sock.getCoScheduler().resume(sock);
+                return;
+            }
+            
+            this.task.run();
+        } finally {
+            next();
+        }
     }
-    
+
 }

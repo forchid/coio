@@ -36,12 +36,13 @@ import java.util.concurrent.Executors;
  *
  */
 public class EchoServer {
-    static final int soTimeout = 8000;
+    static final int soTimeout = 30000;
 
     public static void main(String[] args) throws Exception {
-        SocketAddress endpoint = new InetSocketAddress("localhost", 9999);
+        final String host = System.getProperty("io.co.host", "localhost");
+        SocketAddress endpoint = new InetSocketAddress(host, 9999);
         
-        final int threads = 1000;
+        final int threads = (Runtime.getRuntime().availableProcessors()<<1) + 1;
         final ExecutorService executors = Executors.newFixedThreadPool(threads);
         try {
             startAndServe(executors, endpoint);
@@ -98,8 +99,11 @@ public class EchoServer {
                     //System.out.println("Server: rbytes "+i);
                     out.write(b, 0, i);
                     out.flush();
+                    
+                    // Business time
+                    Thread.sleep(0L);
                 }
-            } catch (final IOException e){
+            } catch (final Exception e){
                 // ignore
             } finally {
                 IoUtils.close(sock);

@@ -21,7 +21,7 @@ import io.co.CoInputStream;
 import io.co.CoOutputStream;
 import io.co.CoScheduler;
 import io.co.CoSocket;
-import io.co.TimeRunner;
+import io.co.CoTimerTask;
 import io.co.util.IoUtils;
 
 import java.io.IOException;
@@ -46,8 +46,8 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     final CoOutputStream out;
     private int id = -1;
     
-    private TimeRunner connectionTimer;
-    private TimeRunner readTimer;
+    private CoTimerTask connectionTimer;
+    private CoTimerTask readTimer;
     final CoroutineRunner coRunner;
     
     public NioCoSocket(Coroutine coConnector, SocketChannel channel, NioCoScheduler coScheduler) {
@@ -82,6 +82,11 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
                 IoUtils.close(chan);
             }
         }
+    }
+    
+    @Override
+    public NioCoScheduler getCoScheduler(){
+        return (NioCoScheduler)super.getCoScheduler();
     }
     
     @Override
@@ -177,8 +182,7 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     protected NioConnectionTimer startConnectionTimer(final int timeout) {
         if(timeout > 0){
             final NioCoScheduler scheduler = (NioCoScheduler)getCoScheduler();
-            final long runat = System.currentTimeMillis() + timeout;
-            this.connectionTimer = new NioConnectionTimer(scheduler, this, runat);
+            this.connectionTimer = new NioConnectionTimer(this, timeout);
             scheduler.schedule(this.connectionTimer);
             return (NioConnectionTimer)this.connectionTimer;
         }
@@ -203,8 +207,7 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
         final int timeout = getSoTimeout();
         if(timeout > 0){
             final NioCoScheduler scheduler = (NioCoScheduler)getCoScheduler();
-            final long runat = System.currentTimeMillis() + timeout;
-            this.readTimer = new NioReadTimer(scheduler, this, runat);
+            this.readTimer = new NioReadTimer(this, timeout);
             scheduler.schedule(this.readTimer);
             return (NioReadTimer)this.readTimer;
         }
