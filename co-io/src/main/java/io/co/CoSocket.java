@@ -43,11 +43,11 @@ public abstract class CoSocket implements CoChannel {
         this.coScheduler = coScheduler;
     }
     
-    public Coroutine getCoConnector(){
+    public Coroutine getConnector(){
         return this.coConnector;
     }
     
-    public CoScheduler getCoScheduler(){
+    public CoScheduler getScheduler(){
         return this.coScheduler;
     }
     

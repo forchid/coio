@@ -843,7 +843,7 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     @Override
-    public void await(Continuation co, final long millis) {
+    public void wait(Continuation co, final long millis) {
         if(millis < 0L) {
             throw new IllegalArgumentException("millis " + millis);
         }

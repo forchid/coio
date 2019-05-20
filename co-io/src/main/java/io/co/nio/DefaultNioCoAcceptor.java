@@ -43,7 +43,7 @@ public class DefaultNioCoAcceptor implements Coroutine {
         if(ssSocket != null){
             final ServerSocketChannel chan = ssSocket.channel();
             NioCoScheduler.debug("Server listen on %s", chan.getLocalAddress());
-            final CoScheduler scheduler = ssSocket.getCoScheduler();
+            final CoScheduler scheduler = ssSocket.getScheduler();
             for(;!scheduler.isShutdown();){
                 ssSocket.accept(co);
             }

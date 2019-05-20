@@ -56,7 +56,7 @@ public interface CoScheduler {
     
     void execute(Runnable task) throws CoIOException;
     
-    void await(Continuation co, long millis);
+    void wait(Continuation co, long millis);
     
     boolean inScheduler();
     

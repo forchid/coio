@@ -50,7 +50,7 @@ public abstract class CoServerSocket implements CoChannel {
         this.coAcceptor    = ReflectUtils.newObject(acceptorClass);
     }
     
-    public Coroutine getCoAcceptor(){
+    public Coroutine getAcceptor(){
         return this.coAcceptor;
     }
     
@@ -58,7 +58,7 @@ public abstract class CoServerSocket implements CoChannel {
         return this.connectorClass;
     }
     
-    public CoScheduler getCoScheduler(){
+    public CoScheduler getScheduler(){
         return this.coScheduler;
     }
     

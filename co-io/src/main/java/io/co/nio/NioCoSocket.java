@@ -84,8 +84,8 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     }
     
     @Override
-    public NioCoScheduler getCoScheduler(){
-        return (NioCoScheduler)super.getCoScheduler();
+    public NioCoScheduler getScheduler(){
+        return (NioCoScheduler)super.getScheduler();
     }
     
     @Override
@@ -189,7 +189,7 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     
     protected NioConnectionTimer startConnectionTimer(final int timeout) {
         if(timeout > 0){
-            final NioCoScheduler scheduler = (NioCoScheduler)getCoScheduler();
+            final NioCoScheduler scheduler = (NioCoScheduler)getScheduler();
             this.connectionTimer = new NioConnectionTimer(this, timeout);
             scheduler.schedule(this.connectionTimer);
             return (NioConnectionTimer)this.connectionTimer;
@@ -214,7 +214,7 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     protected NioReadTimer startReadTimer() {
         final int timeout = getSoTimeout();
         if(timeout > 0){
-            final NioCoScheduler scheduler = (NioCoScheduler)getCoScheduler();
+            final NioCoScheduler scheduler = (NioCoScheduler)getScheduler();
             this.readTimer = new NioReadTimer(this, timeout);
             scheduler.schedule(this.readTimer);
             return (NioReadTimer)this.readTimer;

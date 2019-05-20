@@ -27,6 +27,7 @@ import java.nio.channels.Channel;
  */
 public interface CoChannel extends Channel {
     
+    @Override
     boolean isOpen();
     
     @Override

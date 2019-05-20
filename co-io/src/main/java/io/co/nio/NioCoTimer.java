@@ -52,7 +52,7 @@ public class NioCoTimer implements Runnable {
     
     public NioCoTimer(NioCoSocket source, Runnable task, long delay, long period){
         this.task = task;
-        this.scheduler = source.getCoScheduler();
+        this.scheduler = source.getScheduler();
         this.source = source;
         this.runat  = System.currentTimeMillis() + delay;
         this.period = period;
@@ -98,7 +98,7 @@ public class NioCoTimer implements Runnable {
         if(this.task == null){
             final NioCoSocket sock = (NioCoSocket)this.source();
             this.next();
-            sock.getCoScheduler().resume(sock);
+            sock.getScheduler().resume(sock);
             return;
         }
         
