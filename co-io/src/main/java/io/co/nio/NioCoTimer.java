@@ -16,7 +16,6 @@
  */
 package io.co.nio;
 
-import io.co.CoScheduler;
 import io.co.CoSocket;
 import static io.co.nio.NioCoScheduler.*;
 
@@ -33,8 +32,8 @@ public class NioCoTimer implements Runnable {
     
     int id = -1;
     
+    protected final NioCoScheduler scheduler;
     protected final CoSocket source;
-    protected final CoScheduler scheduler;
     protected Runnable task;
     
     protected boolean canceled;
@@ -80,11 +79,17 @@ public class NioCoTimer implements Runnable {
     }
     
     public boolean isCanceled(){
-        return this.canceled;
+        return this.canceled || !this.source().isOpen();
     }
     
     public void cancel() {
+        if(this.isCanceled()){
+            return;
+        }
+        
+        this.scheduler.cancel(this);
         this.canceled = true;
+        
         debug("Cancel: %s", this);
     }
     

@@ -64,6 +64,7 @@ public class NioCoScheduler implements CoScheduler {
     
     private NioCoTimer[] timers;
     private int maxTimerSlot;
+    private int freeTimerSlot = -1;
     
     protected final Selector selector;
     protected final AtomicBoolean wakeup;
@@ -236,7 +237,9 @@ public class NioCoScheduler implements CoScheduler {
                 final NioCoTimer oldTimer = self.timers[slot];
                 if(oldTimer != null && !oldTimer.isCanceled()){
                     final String f = "Time runner slot %s used: %s";
-                    throw new IllegalStateException(String.format(f, slot, oldTimer));
+                    final String error = String.format(f, slot, oldTimer);
+                    debug("schedule(): %s", error);
+                    throw new IllegalStateException(error);
                 }
                 self.timers[slot] = timerTask;
             }
@@ -274,6 +277,19 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     @Override
+    public void wait(Continuation co, final long millis) {
+        if(millis < 0L) {
+            throw new IllegalArgumentException("millis " + millis);
+        }
+        
+        final NioCoSocket sock = (NioCoSocket)co.getContext();
+        final NioCoTimer timer = new NioCoTimer(sock, millis);
+        this.schedule(timer);
+        // Do wait
+        co.suspend();
+    }
+    
+    @Override
     public void close(CoChannel coChannel) {
         if(coChannel == null){
             return;
@@ -288,7 +304,6 @@ public class NioCoScheduler implements CoScheduler {
         if(scChan != null && scChan == chan) {
             final int slot = chan.id();
             recycleChanSlot(slot);
-            cancelTimers(chan);
             debug("Close: %s", scChan);
         }
     }
@@ -374,20 +389,6 @@ public class NioCoScheduler implements CoScheduler {
         System.arraycopy(chans, 0, newChans, 0, n);
         this.chans = newChans;
         return this.maxSlot++;
-    }
-    
-    private void cancelTimers(final NioCoChannel<?> coChannel) {
-        final NioCoTimer[] timers = this.timers;
-        final int n = Math.min(this.maxTimerSlot, timers.length);
-        for(int i = 0; i < n; ++i){
-            final NioCoTimer timer = timers[i];
-            if(timer != null && timer.source() == coChannel){
-                timers[i] = null;
-                if(!timer.isCanceled()) {
-                    timer.cancel();
-                }
-            }
-        }
     }
     
     private void recycleChanSlot(final int slot){
@@ -712,24 +713,38 @@ public class NioCoScheduler implements CoScheduler {
     }
 
     int nextTimerSlot() {
+        final int freeSlot = this.freeTimerSlot;
+        final int maxSlot = this.maxTimerSlot;
+        
+        debug("nextTimerSlot(): freeSlot = %s, maxSlot = %s", freeSlot, maxSlot);
+        if(freeSlot != -1){
+            this.freeTimerSlot = -1;
+            return freeSlot;
+        }
+        
         final NioCoTimer[] timers = this.timers;
         final int n = timers.length;
         
-        final int maxSlot = this.maxTimerSlot;
+        debug("nextTimerSlot(): maxSlot = %s", maxSlot);
         if(maxSlot < n){
             if(maxSlot > 0) {
+                final int slot = maxSlot - 1; 
                 // First try to reuse the last slot!
-                final NioCoTimer tailTimer = timers[maxSlot - 1];
+                final NioCoTimer tailTimer = timers[slot];
+                debug("nextTimerSlot(): tailTimer = %s", tailTimer);
                 if(tailTimer == null || tailTimer.isCanceled()) {
-                    return maxSlot - 1;
+                    timers[slot] = null;
+                    return slot;
                 }
             }
             
             return this.maxTimerSlot++;
         }
+        
         for(int i = 0; i < n; ++i){
             final NioCoTimer timer = timers[i];
             if(timer == null || timer.isCanceled()){
+                debug("nextTimerSlot(): timer = %s", timer);
                 return i;
             }
         }
@@ -749,21 +764,32 @@ public class NioCoScheduler implements CoScheduler {
         final int n = Math.min(this.maxTimerSlot, timers.length);
         final long cur = System.currentTimeMillis();
         long min = Long.MAX_VALUE;
-        boolean nomin = true, tryRecycle = false;
+        boolean nomin = true;
         
         for(int i = 0; i < n; ++i){
             final NioCoTimer timer = timers[i];
             if(timer == null || timer.isCanceled()){
-                timers[i]  = null;
-                tryRecycle = true;
+                debug("minRunat(): timer[%s] recyled - %s", i, timer);
+                timers[i] = null;
+                this.freeTimerSlot = i;
                 continue;
             }
             final long runat = timer.runat();
             if(runat <= cur){
                 if(runTimers == null) {
                     runTimers = new ArrayList<>();
+                    runTimers.add(timer);
+                }else{
+                    // Insertion sort
+                    for(int j = runTimers.size(); j > 0; --j){
+                        final NioCoTimer t = runTimers.get(j - 1);
+                        if(runat < t.runat()){
+                            continue;
+                        }
+                        runTimers.add(j, timer);
+                        break;
+                    }
                 }
-                runTimers.add(timer);
                 continue;
             }
             if(runat < min){
@@ -772,29 +798,19 @@ public class NioCoScheduler implements CoScheduler {
             }
         }
         
+        // recycle timer slot
+        recycleTimerSlots();
+        
         // Execute timer
         if(runTimers != null) {
-            for(final NioCoTimer timer : runTimers) {
+            for(int i = 0, size = runTimers.size(); i < size; ++i) {
+                final NioCoTimer timer = runTimers.get(i);
                 try {
                     timer.run();
                 } catch (final Exception e){
                     timer.cancel();
-                    tryRecycle = true;
                     debug("Timer runs error", e);
                 }
-            }
-        }
-        
-        // recycle timer slot
-        if(tryRecycle) {
-            final NioCoTimer[] timerList = this.timers;
-            for(int i = this.maxTimerSlot - 1; i >= 0; --i){
-                final NioCoTimer r = timerList[i];
-                if(r != null && !r.isCanceled()){
-                    break;
-                }
-                timerList[i] = null;
-                this.maxTimerSlot--;
             }
         }
         
@@ -805,13 +821,52 @@ public class NioCoScheduler implements CoScheduler {
         return  (min - cur);
     }
     
+    boolean cancel(final NioCoTimer coTimer) {
+        final NioCoTimer[] timers = this.timers;
+        final int slot = coTimer.id;
+        final NioCoTimer timer = timers[slot];
+        if(timer != coTimer){
+            return false;
+        }
+        
+        recycleTimer(slot);
+        return true;
+    }
+    
+    private void recycleTimer(final int slot){
+        final NioCoTimer[] timers = this.timers;
+        timers[slot] = null;
+        this.freeTimerSlot = slot;
+        
+        if(slot == this.maxTimerSlot - 1){
+            this.maxTimerSlot--;
+            // Free slot recycled!
+            this.freeTimerSlot = -1;
+            recycleTimerSlots();
+        }
+    }
+    
+    private void recycleTimerSlots() {
+        for(int i = this.maxTimerSlot - 1; i >= 0; --i){
+            final NioCoTimer timer = timers[i];
+            if(timer != null && !timer.isCanceled()){
+                break;
+            }
+            timers[i] = null;
+            this.maxTimerSlot--;
+            // Free slot recycled!
+            this.freeTimerSlot = -1;
+        }
+    }
+
     static class PostSocketRunner implements Runnable {
         
         final NioCoScheduler scheduler;
         final SocketChannel channel;
         final Class<? extends Coroutine> connectorClass;
 
-        PostSocketRunner(NioCoScheduler scheduler, SocketChannel channel, Class<? extends Coroutine> connectorClass){
+        PostSocketRunner(NioCoScheduler scheduler, 
+                SocketChannel channel, Class<? extends Coroutine> connectorClass){
             this.scheduler = scheduler;
             this.channel   = channel;
             this.connectorClass = connectorClass;
@@ -838,19 +893,6 @@ public class NioCoScheduler implements CoScheduler {
             }
         }
         
-    }
-    
-    @Override
-    public void wait(Continuation co, final long millis) {
-        if(millis < 0L) {
-            throw new IllegalArgumentException("millis " + millis);
-        }
-        
-        final NioCoSocket sock = (NioCoSocket)co.getContext();
-        final NioCoTimer timer = new NioCoTimer(sock, millis);
-        this.schedule(timer);
-        // Do wait
-        co.suspend();
     }
     
 }
