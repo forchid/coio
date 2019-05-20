@@ -725,13 +725,11 @@ public class NioCoScheduler implements CoScheduler {
         final NioCoTimer[] timers = this.timers;
         final int n = timers.length;
         
-        debug("nextTimerSlot(): maxSlot = %s", maxSlot);
         if(maxSlot < n){
             if(maxSlot > 0) {
                 final int slot = maxSlot - 1; 
                 // First try to reuse the last slot!
                 final NioCoTimer tailTimer = timers[slot];
-                debug("nextTimerSlot(): tailTimer = %s", tailTimer);
                 if(tailTimer == null || tailTimer.isCanceled()) {
                     timers[slot] = null;
                     return slot;
@@ -744,7 +742,6 @@ public class NioCoScheduler implements CoScheduler {
         for(int i = 0; i < n; ++i){
             final NioCoTimer timer = timers[i];
             if(timer == null || timer.isCanceled()){
-                debug("nextTimerSlot(): timer = %s", timer);
                 return i;
             }
         }
@@ -769,7 +766,6 @@ public class NioCoScheduler implements CoScheduler {
         for(int i = 0; i < n; ++i){
             final NioCoTimer timer = timers[i];
             if(timer == null || timer.isCanceled()){
-                debug("minRunat(): timer[%s] recyled - %s", i, timer);
                 timers[i] = null;
                 this.freeTimerSlot = i;
                 continue;
