@@ -120,20 +120,24 @@ public class EchoClient {
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object message) {
             final ByteBuf buf = (ByteBuf)message;
-            if(buf.readableBytes() < b.length) {
-                ctx.read();
-                return;
-            }
-            if(++cureqs >= requests) {
-                success.incrementAndGet();
-                latch.countDown();
-                ctx.close();
-                info();
-                return;
+            try {
+                if(buf.readableBytes() < b.length) {
+                    ctx.read();
+                    return;
+                }
+                if(++cureqs >= requests) {
+                    success.incrementAndGet();
+                    latch.countDown();
+                    ctx.close();
+                    info();
+                    return;
+                }
+                
+                buf.readBytes(b);
+            }finally{
+                buf.release();
             }
             
-            buf.readBytes(b);
-            buf.release();
             // next step
             send(ctx);
         }
