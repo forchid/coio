@@ -264,10 +264,12 @@ public class NioCoScheduler implements CoScheduler {
         
         final boolean ok = this.syncQueue.offer(task);
         if(ok){
-            this.selector.wakeup();
-            this.wakeup.set(true);
+            if(this.wakeup.compareAndSet(false, true)){
+                this.selector.wakeup();
+            }
             return;
         }
+        
         throw new CoIOException("Execution queue full");
     }
     
@@ -412,7 +414,7 @@ public class NioCoScheduler implements CoScheduler {
                 }
                 
                 // Do selection
-                final int sels = select();
+                final int sels = doSelect();
                 if(sels == 0) {
                     execSyncRunners(-1L);
                     continue;
@@ -442,24 +444,20 @@ public class NioCoScheduler implements CoScheduler {
         }
     }
     
-    private int select() throws IOException {
+    private int doSelect() throws IOException {
         final Selector selector = this.selector;
         
         final long minRunat = minRunat();
         //debug("minRunat = %s, maxTimerSlot = %s", minRunat, this.maxTimerSlot);
         
-        // Has new timer or runner?
-        if((minRunat == 0L && this.maxTimerSlot > 0)|| 
-                (hasRunners() && this.wakeup.compareAndSet(true, false))) {
+        // Has new runner-or-timer?
+        final boolean wakeuped = this.wakeup.compareAndSet(true, false);
+        if(wakeuped || (minRunat == 0L && this.maxTimerSlot > 0)) {
             debug("selectNow()");
             return selector.selectNow();
         }
         
         return selector.select(minRunat);
-    }
-    
-    private boolean hasRunners() {
-        return (this.syncQueue.peek() != null);
     }
     
     private boolean tryShutdown() {
