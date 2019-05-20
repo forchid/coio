@@ -99,6 +99,10 @@ public class NioCoOutputStream extends CoOutputStream {
     }
     
     protected void flush(Continuation co, final ByteBuffer buf) throws CoIOException {
+        if(!buf.hasRemaining()){
+            return;
+        }
+        
         final SocketChannel chan = this.channel;
         final SelectionKey selKey = IoUtils.enableWrite(chan, this.selector, this.coSocket);
         try{
