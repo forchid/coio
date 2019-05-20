@@ -32,12 +32,6 @@ public class NioReadTimer extends NioCoTimer {
     }
     
     @Override
-    public void cancel() {
-        super.cancel();
-        debug("Cancel: %s", this);
-    }
-    
-    @Override
     public void run() {
         debug("Running: %s", this);
         if(this.isCanceled()){

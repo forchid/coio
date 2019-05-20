@@ -616,6 +616,7 @@ public class NioCoScheduler implements CoScheduler {
                 // Had closed when timeout etc
                 return;
             }
+            
             socket.cancelConnetionTimer();
             final CoroutineRunner coRunner = coChan.coRunner();
             try {
