@@ -60,7 +60,8 @@ public class NioCoScheduler implements CoScheduler {
     
     private NioCoChannel<?>[] chans;
     private final int maxConnections;
-    private int maxSlot;
+    private int maxChanSlot;
+    private int freeChanSlot = -1;
     
     private NioCoTimer[] timers;
     private int maxTimerSlot;
@@ -340,7 +341,7 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     NioCoScheduler register(final NioCoChannel<?> coChannel){
-        final int slot = nextSlot();
+        final int slot = nextChanSlot();
         coChannel.id(slot);
         
         final NioCoChannel<?> oldChan = this.chans[slot];
@@ -360,13 +361,19 @@ public class NioCoScheduler implements CoScheduler {
         return coChan;
     }
     
-    int nextSlot() throws CoIOException {
+    private int nextChanSlot() throws CoIOException {
+        final int slot = this.freeChanSlot;
+        if(slot != -1) {
+            this.freeChanSlot = -1;
+            return slot;
+        }
+            
         final NioCoChannel<?>[] chans = this.chans;
         final int n = chans.length;
         
         // quick allocate
-        if(this.maxSlot < n){
-            return this.maxSlot++;
+        if(this.maxChanSlot < n){
+            return this.maxChanSlot++;
         }
         
         // traverse
@@ -378,9 +385,9 @@ public class NioCoScheduler implements CoScheduler {
         }
         
         // check limit
-        if(this.maxSlot >= this.maxConnections){
+        if(this.maxChanSlot >= this.maxConnections){
             // Too many connections
-            throw new CoIOException("Too many connections: " + this.maxSlot);
+            throw new CoIOException("Too many connections: " + this.maxChanSlot);
         }
         
         // expand
@@ -388,20 +395,26 @@ public class NioCoScheduler implements CoScheduler {
         final NioCoChannel<?>[] newChans = new NioCoChannel<?>[size];
         System.arraycopy(chans, 0, newChans, 0, n);
         this.chans = newChans;
-        return this.maxSlot++;
+        return this.maxChanSlot++;
     }
     
     private void recycleChanSlot(final int slot){
         this.chans[slot] = null;
-        if(slot == this.maxSlot - 1){
-            this.maxSlot--;
+        this.freeChanSlot= slot;
+        if(slot == this.maxChanSlot - 1){
+            this.maxChanSlot--;
+            this.freeChanSlot = -1;
             for(int i = slot - 1; i >= 0; --i){
                 final NioCoChannel<?> c = this.chans[i];
                 if(c != null && c.isOpen()){
                     break;
                 }
                 this.chans[i] = null;
-                this.maxSlot--;
+                this.maxChanSlot--;
+                // recycle free slot
+                if(this.maxChanSlot == this.freeChanSlot) {
+                    this.freeChanSlot = -1;
+                }
             }
         }
     }
@@ -851,7 +864,9 @@ public class NioCoScheduler implements CoScheduler {
             timers[i] = null;
             this.maxTimerSlot--;
             // Free slot recycled!
-            this.freeTimerSlot = -1;
+            if(this.maxTimerSlot == this.freeTimerSlot) {
+                this.freeTimerSlot = -1;
+            }
         }
     }
 

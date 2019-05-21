@@ -42,7 +42,7 @@ public class EchoServer {
         final String host = System.getProperty("io.co.host", "localhost");
         SocketAddress endpoint = new InetSocketAddress(host, 9999);
         
-        final int threads = (Runtime.getRuntime().availableProcessors()<<1) + 1;
+        final int threads = 250;
         final ExecutorService executors = Executors.newFixedThreadPool(threads);
         try {
             startAndServe(executors, endpoint);
