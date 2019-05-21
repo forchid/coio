@@ -59,10 +59,12 @@ public class EchoClient {
         
         // Parallel scheduler
         final NioCoScheduler[] schedulers = new NioCoScheduler[schedCount];
-        final Thread[] schedThreads = new Thread[schedulers.length];
+        final Thread[] schedThreads = new Thread[schedCount];
+        final AtomicInteger []remains = new AtomicInteger[schedCount];
         for(int i = 0; i < schedulers.length; ++i){
             final int j = i;
             final NioCoScheduler sched = schedulers[j] = new NioCoScheduler(conns, conns, 0);
+            remains[i] = new AtomicInteger();
             final Thread t = schedThreads[j] = new Thread(){
                 @Override
                 public void run(){
@@ -73,13 +75,16 @@ public class EchoClient {
             t.start();
         }
         
-        final AtomicInteger success = new AtomicInteger(), remains = new AtomicInteger(conns);
+        final AtomicInteger success = new AtomicInteger();
         try {
             for(int i = 0; i < conns; ++i){
-                final NioCoScheduler scheduler = schedulers[i%schedulers.length];
-                final Coroutine connector = new Connector(i, success, remains, scheduler);
+                final int j = i % schedulers.length;
+                final NioCoScheduler scheduler = schedulers[j];
+                final AtomicInteger remain = remains[j];
+                final Coroutine connector = new Connector(i, success, remain, scheduler);
                 final CoSocket sock = new NioCoSocket(connector, scheduler);
                 sock.connect(remote, 30000);
+                remain.incrementAndGet();
             }
         } finally {
             for(final Thread t : schedThreads){
@@ -96,13 +101,13 @@ public class EchoClient {
         
         final NioCoScheduler scheduler;
         final AtomicInteger success;
-        final AtomicInteger remains;
+        final AtomicInteger remain;
         final int id;
         
-        Connector(int id, AtomicInteger success, AtomicInteger remains, NioCoScheduler scheduler){
+        Connector(int id, AtomicInteger success, AtomicInteger remain, NioCoScheduler scheduler){
             this.scheduler = scheduler;
             this.success   = success;
-            this.remains   = remains;
+            this.remain    = remain;
             this.id = id;
         }
 
@@ -148,10 +153,10 @@ public class EchoClient {
                 System.out.println(String.format("[%s]Client-%05d: time %dms", 
                      Thread.currentThread().getName(), id, (System.currentTimeMillis() - ts)));
             } finally {
-                remains.decrementAndGet();
+                remain.decrementAndGet();
                 IoUtils.close(sock);
                 // Shutdown only when all connection completed
-                if(remains.compareAndSet(0, 0)){
+                if(remain.compareAndSet(0, 0)){
                     scheduler.shutdown();
                 }
             }
