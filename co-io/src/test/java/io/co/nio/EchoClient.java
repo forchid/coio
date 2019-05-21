@@ -73,11 +73,11 @@ public class EchoClient {
             t.start();
         }
         
-        final AtomicInteger success = new AtomicInteger();
+        final AtomicInteger success = new AtomicInteger(), remains = new AtomicInteger(conns);
         try {
             for(int i = 0; i < conns; ++i){
                 final NioCoScheduler scheduler = schedulers[i%schedulers.length];
-                final Coroutine connector = new Connector(i, success, scheduler);
+                final Coroutine connector = new Connector(i, success, remains, scheduler);
                 final CoSocket sock = new NioCoSocket(connector, scheduler);
                 sock.connect(remote, 30000);
             }
@@ -96,11 +96,13 @@ public class EchoClient {
         
         final NioCoScheduler scheduler;
         final AtomicInteger success;
+        final AtomicInteger remains;
         final int id;
         
-        Connector(int id, AtomicInteger success, NioCoScheduler scheduler){
+        Connector(int id, AtomicInteger success, AtomicInteger remains, NioCoScheduler scheduler){
             this.scheduler = scheduler;
             this.success   = success;
+            this.remains   = remains;
             this.id = id;
         }
 
@@ -146,8 +148,12 @@ public class EchoClient {
                 System.out.println(String.format("[%s]Client-%05d: time %dms", 
                      Thread.currentThread().getName(), id, (System.currentTimeMillis() - ts)));
             } finally {
+                remains.decrementAndGet();
                 IoUtils.close(sock);
-                scheduler.shutdown();
+                // Shutdown only when all connection completed
+                if(remains.compareAndSet(0, 0)){
+                    scheduler.shutdown();
+                }
             }
         }
         
