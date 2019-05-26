@@ -37,6 +37,8 @@ public interface CoScheduler {
     int CHILD_COUNT      = Integer.getInteger("io.co.schedChildCount", 2);
     String NAME          = System.getProperty("io.co.schedName", "co-scheduler");
     
+    String getName();
+    
     void start();
     
     void startAndServe();

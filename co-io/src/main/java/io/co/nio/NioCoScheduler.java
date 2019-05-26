@@ -121,6 +121,11 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     @Override
+    public String getName() {
+        return this.name;
+    }
+    
+    @Override
     public void start() {
         synchronized(this.startSync) {
             if(this.schedThread != null) {
