@@ -51,12 +51,25 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
         this(port, DefaultAcceptor.class, DefaultConnector.class);
     }
     
+    public NioCoServerSocket(int port,  Class<? extends Coroutine> connectorClass) {
+        this(port, BACKLOG_DEFAULT, null, DefaultAcceptor.class, connectorClass, null);
+    }
+    
     public NioCoServerSocket(int port, int backlog) {
         this(port, backlog, DefaultAcceptor.class, DefaultConnector.class, null);
     }
     
+    public NioCoServerSocket(int port, int backlog, Class<? extends Coroutine> connectorClass) {
+        this(port, backlog, null, DefaultAcceptor.class, connectorClass, null);
+    }
+    
     public NioCoServerSocket(int port, int backlog, InetAddress bindAddr) {
         this(port, backlog, bindAddr, DefaultAcceptor.class, DefaultConnector.class, null);
+    }
+    
+    public NioCoServerSocket(int port, int backlog, InetAddress bindAddr,
+            Class<? extends Coroutine> connectorClass) {
+        this(port, backlog, bindAddr, DefaultAcceptor.class, connectorClass, null);
     }
     
     public NioCoServerSocket(Class<? extends Coroutine> acceptorClass, 

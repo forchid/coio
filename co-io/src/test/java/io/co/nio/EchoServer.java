@@ -21,8 +21,7 @@ import io.co.CoOutputStream;
 import io.co.CoServerSocket;
 import io.co.CoSocket;
 
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
+import java.net.InetAddress;
 
 import com.offbynull.coroutines.user.Continuation;
 import com.offbynull.coroutines.user.Coroutine;
@@ -37,15 +36,20 @@ import static io.co.nio.NioCoScheduler.*;
  */
 public class EchoServer {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         System.setProperty("io.co.soTimeout", "30000");
         System.setProperty("io.co.maxConnections", "10000");
-        System.setProperty("io.co.scheduler.childCount", "2");
+        //System.setProperty("io.co.scheduler.childCount", "2");
         System.setProperty("io.co.debug", "false");
         final String host = System.getProperty("io.co.host", "localhost");
-        SocketAddress endpoint = new InetSocketAddress(host, 9999);
+        final int port = Integer.getInteger("io.co.port", 9999);
+        final InetAddress bindAddr = InetAddress.getByName(host);
         
-        CoServerSocket.startAndServe(Connector.class, endpoint);
+        final CoServerSocket ssock = 
+                new NioCoServerSocket(port, 150, bindAddr, Connector.class);
+        ssock.getScheduler().awaitTermination();
+        ssock.close();
+        
         System.out.println("Bye");
     }
 
