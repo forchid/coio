@@ -118,6 +118,11 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     }
     
     @Override
+    public boolean isConnected() {
+        return this.channel.isConnected();
+    }
+    
+    @Override
     public void close(){
         IoUtils.close(getInputStream());
         IoUtils.close(getOutputStream());

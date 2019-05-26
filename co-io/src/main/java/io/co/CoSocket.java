@@ -70,6 +70,8 @@ public abstract class CoSocket implements CoChannel {
     
     public abstract CoOutputStream getOutputStream();
     
+    public abstract boolean isConnected();
+    
     @Override
     public void close() {
         this.coScheduler.close(this);

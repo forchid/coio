@@ -36,13 +36,17 @@ public interface CoScheduler {
     int MAX_CONNECTIONS  = Integer.getInteger("io.co.maxConnections", 102400);
     int CHILD_COUNT      = Integer.getInteger("io.co.scheduler.childCount", 2);
     
+    void start();
+    
     void startAndServe();
+    
+    boolean isStarted();
     
     CoSocket accept(Continuation co, CoServerSocket coServerSocket)
         throws CoIOException;
     
     void bind(CoServerSocket coServerSocket, SocketAddress endpoint, int backlog)
-        throws IOException;
+        throws CoIOException;
     
     void connect(CoSocket coSocket, SocketAddress remote)
         throws IOException;
@@ -65,6 +69,10 @@ public interface CoScheduler {
     boolean isStopped();
     
     boolean isShutdown();
+    
+    void await() throws InterruptedException;
+    
+    void await(long millis) throws InterruptedException;
     
     void shutdown();
     

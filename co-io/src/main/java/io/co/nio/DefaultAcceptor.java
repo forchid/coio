@@ -30,10 +30,10 @@ import com.offbynull.coroutines.user.Coroutine;
  * @since 2019-05-14
  *
  */
-public class DefaultNioCoAcceptor implements Coroutine {
+public class DefaultAcceptor implements Coroutine {
     private static final long serialVersionUID = 1608438566384500434L;
     
-    public DefaultNioCoAcceptor(){
+    public DefaultAcceptor(){
         
     }
     

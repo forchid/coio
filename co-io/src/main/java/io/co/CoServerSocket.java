@@ -16,7 +16,7 @@
  */
 package io.co;
 
-import java.io.IOException;
+import java.net.InetAddress;
 import java.net.SocketAddress;
 
 import com.offbynull.coroutines.user.Continuation;
@@ -37,17 +37,53 @@ public abstract class CoServerSocket implements CoChannel {
     protected static final int BACKLOG_DEFAULT = 150;
     
     protected final Class<? extends Coroutine> acceptorClass;
-    protected final Class<? extends Coroutine> connectorClass;
     protected final Coroutine coAcceptor;
     
-    protected final CoScheduler coScheduler;
+    protected final Class<? extends Coroutine> connectorClass;
+    
+    protected CoScheduler coScheduler;
+    
+    protected CoServerSocket(Class<? extends Coroutine> acceptorClass, 
+            Class<? extends Coroutine> connectorClass) {
+        this(acceptorClass, connectorClass, null);
+    }
     
     protected CoServerSocket(Class<? extends Coroutine> acceptorClass, 
             Class<? extends Coroutine> connectorClass, CoScheduler coScheduler) {
-        this.acceptorClass = acceptorClass;
-        this.connectorClass= connectorClass;
-        this.coScheduler   = coScheduler;
-        this.coAcceptor    = ReflectUtils.newObject(acceptorClass);
+        this.acceptorClass  = acceptorClass;
+        this.connectorClass = connectorClass;
+        this.coAcceptor     = ReflectUtils.newObject(acceptorClass);
+        
+        this.coScheduler    = coScheduler;
+    }
+    
+    protected CoServerSocket(int port, Class<? extends Coroutine> acceptorClass, 
+            Class<? extends Coroutine> connectorClass) {
+        this(port, acceptorClass, connectorClass, null);
+    }
+    
+    protected CoServerSocket(int port, Class<? extends Coroutine> acceptorClass, 
+            Class<? extends Coroutine> connectorClass, CoScheduler coScheduler) {
+        this(port, BACKLOG_DEFAULT, null, acceptorClass, connectorClass, coScheduler);
+    }
+    
+    protected CoServerSocket(int port, int backlog,
+            Class<? extends Coroutine> acceptorClass, 
+            Class<? extends Coroutine> connectorClass, CoScheduler coScheduler) {
+        this(port, backlog, null, acceptorClass, connectorClass, coScheduler);
+    }
+    
+    protected CoServerSocket(int port, int backlog, InetAddress bindAddr, 
+            Class<? extends Coroutine> acceptorClass, 
+            Class<? extends Coroutine> connectorClass, CoScheduler coScheduler) {
+        if(port < 0 || port > 65535) {
+            throw new IllegalArgumentException("port " + port);
+        }
+        
+        this.acceptorClass  = acceptorClass;
+        this.connectorClass = connectorClass;
+        this.coScheduler    = coScheduler;
+        this.coAcceptor     = ReflectUtils.newObject(acceptorClass);
     }
     
     public Coroutine getAcceptor(){
@@ -65,17 +101,27 @@ public abstract class CoServerSocket implements CoChannel {
     @Override
     public abstract boolean isOpen();
     
-    public void bind(SocketAddress endpoint) throws IOException {
+    public boolean isClosed() {
+        return !isOpen();
+    }
+    
+    public void bind(SocketAddress endpoint) {
         bind(endpoint, BACKLOG_DEFAULT);
     }
     
-    public void bind(SocketAddress endpoint, int backlog) throws IOException {
+    public void bind(SocketAddress endpoint, int backlog) {
         this.coScheduler.bind(this, endpoint, backlog);
     }
     
     public CoSocket accept(Continuation co) {
         return this.coScheduler.accept(co, this);
     }
+    
+    public abstract InetAddress getInetAddress();
+    
+    public abstract int getLocalPort();
+    
+    public abstract SocketAddress getLocalSocketAddress() throws CoIOException ;
  
     @Override
     public void close(){

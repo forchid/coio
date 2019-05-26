@@ -16,6 +16,8 @@
  */
 package io.co;
 
+import java.io.IOException;
+
 /**
  * The coroutine IO exception, also a runtime exception.
  * 
@@ -31,11 +33,11 @@ public class CoIOException extends RuntimeException {
         super(message);
     }
     
-    public CoIOException(Throwable cause) {
+    public CoIOException(IOException cause) {
         super(cause);
     }
     
-    public CoIOException(String message, Throwable cause) {
+    public CoIOException(String message, IOException cause) {
         super(message, cause);
     }
 

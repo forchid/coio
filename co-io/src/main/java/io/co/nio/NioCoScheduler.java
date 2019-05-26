@@ -55,7 +55,8 @@ public class NioCoScheduler implements CoScheduler {
             throw new ExceptionInInitializerError(error);
         }
     }
-    
+
+    private volatile boolean started, shutdown, stopped;
     private volatile Thread schedThread;
     
     private NioCoChannel<?>[] chans;
@@ -69,8 +70,6 @@ public class NioCoScheduler implements CoScheduler {
     
     protected final Selector selector;
     protected final AtomicBoolean wakeup;
-    protected volatile boolean shutdown;
-    protected volatile boolean stopped;
     
     protected final NioCoScheduler[] childs;
     private int nextChildSlot;
@@ -89,6 +88,8 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     public NioCoScheduler(int initConnections, int maxConnections, int childCount){
+        debug("NioCoScheduler(): initConnections = %s, maxConnections = %s, childCount = %s",
+                initConnections, maxConnections, childCount);
         if(initConnections < 0){
             throw new IllegalArgumentException("initConnections " + initConnections);
         }
@@ -119,10 +120,24 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     @Override
+    public void start() {
+        this.schedThread = new Thread("nio-scheduler") {
+            @Override
+            public void run() {
+                startAndServe();
+            }
+        };
+        this.schedThread.start();
+    }
+    
+    @Override
     public void startAndServe() {
         if(this.schedThread != null) {
-            throw new IllegalStateException("Scheduler had started");
+            if(!inScheduler() || inScheduler() && isStarted()) {
+                throw new IllegalStateException("Scheduler had started");
+            }
         }
+        this.started = true;
         this.schedThread = Thread.currentThread();
         
         final NioCoScheduler[] childs = this.childs;
@@ -143,6 +158,17 @@ public class NioCoScheduler implements CoScheduler {
         serve();
     }
     
+
+    @Override
+    public void await() throws InterruptedException {
+        this.schedThread.join();
+    }
+    
+    @Override
+    public void await(long millis) throws InterruptedException {
+        this.schedThread.join(millis);
+    }
+    
     @Override
     public CoSocket accept(Continuation co, CoServerSocket coServerSocket) {
         debug("accept() ->");
@@ -154,7 +180,7 @@ public class NioCoScheduler implements CoScheduler {
     
     @Override
     public void bind(final CoServerSocket coServerSocket, final SocketAddress endpoint, final int backlog)
-        throws IOException {
+        throws CoIOException {
         final NioCoScheduler self = this;
         self.execute(new Runnable(){
             @Override
@@ -301,21 +327,26 @@ public class NioCoScheduler implements CoScheduler {
             return;
         }
         
-        final NioCoChannel<?> scChan = slotCoChannel(chan);
-        if(scChan != null && scChan == chan) {
-            final int slot = chan.id();
-            recycleChanSlot(slot);
-            debug("Close: %s", scChan);
-        }
+        execute(new Runnable() {
+            @Override
+            public void run() {
+                final NioCoChannel<?> scChan = slotCoChannel(chan);
+                if(scChan != null && scChan == chan) {
+                    final int slot = chan.id();
+                    recycleChanSlot(slot);
+                    debug("Close: %s", scChan);
+                }
+            }
+        });
     }
     
     @Override
     public void shutdown() {
+        this.shutdown = true;
         final Selector sel = this.selector;
         if(sel != null){
             sel.wakeup();
         }
-        this.shutdown = true;
         
         for(final NioCoScheduler child: this.childs){
             if(child == null){
@@ -323,6 +354,11 @@ public class NioCoScheduler implements CoScheduler {
             }
             child.shutdown();
         }
+    }
+    
+    @Override
+    public boolean isStarted() {
+        return this.started;
     }
     
     @Override
@@ -337,7 +373,8 @@ public class NioCoScheduler implements CoScheduler {
     
     @Override
     public boolean inScheduler() {
-        return (this.schedThread == Thread.currentThread());
+        final Thread schedThread = this.schedThread;
+        return (schedThread == null || schedThread == Thread.currentThread());
     }
     
     NioCoScheduler register(final NioCoChannel<?> coChannel){
@@ -453,7 +490,8 @@ public class NioCoScheduler implements CoScheduler {
                 
             } catch (final Throwable uncaught){
                 this.stop();
-                throw new CoIOException("Scheduler fatal", uncaught);
+                debug("Scheduler fatal", uncaught);
+                break;
             }
         }
     }
@@ -475,27 +513,29 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     private boolean tryShutdown() {
-        if(this.shutdown){
-            final NioCoChannel<?>[] chans = this.chans;
-            int actives = 0;
-            for(int i = 0, n = chans.length; i < n; ++i){
-                final NioCoChannel<?> runChan = chans[i];
-                if(runChan == null){
-                    continue;
-                }
-                final Channel chan = runChan.channel();
-                if(chan instanceof ServerSocketChannel){
-                    this.close(runChan);
-                    continue;
-                }
-                ++actives;
+        if(!isShutdown()){
+            return false;
+        }
+        
+        final NioCoChannel<?>[] chans = this.chans;
+        int actives = 0;
+        for(int i = 0, n = chans.length; i < n; ++i){
+            final NioCoChannel<?> runChan = chans[i];
+            if(runChan == null){
+                continue;
             }
-            debug("tryShutdown(): actives %s", actives);
-            if(actives == 0){
-                this.stop();
-                // Exit normally
-                return true;
+            final Channel chan = runChan.channel();
+            if(chan instanceof ServerSocketChannel){
+                this.close(runChan);
+                continue;
             }
+            ++actives;
+        }
+        debug("tryShutdown(): actives %s", actives);
+        if(actives == 0){
+            this.stop();
+            // Exit normally
+            return true;
         }
         return false;
     }
@@ -712,6 +752,9 @@ public class NioCoScheduler implements CoScheduler {
         }
         if(child == null){
             IoUtils.close(channel);
+            if(isShutdown()) {
+                return;
+            }
             throw new IllegalStateException("No valid child scheduler available");
         }
         
