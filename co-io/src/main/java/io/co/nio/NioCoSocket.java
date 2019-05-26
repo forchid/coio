@@ -173,7 +173,8 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
             throws CoIOException {
         final int initConns = CoScheduler.INIT_CONNECTIONS;
         final int maxConns  = CoScheduler.MAX_CONNECTIONS;
-        final NioCoScheduler scheduler = new NioCoScheduler(initConns, maxConns, 0);
+        final NioCoScheduler scheduler = 
+                new NioCoScheduler("nio-cosched-client", initConns, maxConns, 0);
         NioCoSocket socket = null;
         boolean failed = true;
         try {

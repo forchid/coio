@@ -33,8 +33,9 @@ public interface CoScheduler {
     boolean DEBUG = Boolean.getBoolean("io.co.debug");
     
     int INIT_CONNECTIONS = Integer.getInteger("io.co.initConnections", 1024);
-    int MAX_CONNECTIONS  = Integer.getInteger("io.co.maxConnections", 102400);
-    int CHILD_COUNT      = Integer.getInteger("io.co.scheduler.childCount", 2);
+    int MAX_CONNECTIONS  = Integer.getInteger("io.co.maxConnections",  102400);
+    int CHILD_COUNT      = Integer.getInteger("io.co.schedChildCount", 2);
+    String NAME          = System.getProperty("io.co.schedName", "co-scheduler");
     
     void start();
     
@@ -60,19 +61,19 @@ public interface CoScheduler {
     
     void execute(Runnable task) throws CoIOException;
     
-    void wait(Continuation co, long millis);
+    void await(Continuation co, long millis);
     
     boolean inScheduler();
     
     void close(CoChannel coChannel);
     
-    boolean isStopped();
+    boolean isTerminated();
     
     boolean isShutdown();
     
-    void await() throws InterruptedException;
+    void awaitTermination() throws InterruptedException;
     
-    void await(long millis) throws InterruptedException;
+    boolean awaitTermination(long millis) throws InterruptedException;
     
     void shutdown();
     

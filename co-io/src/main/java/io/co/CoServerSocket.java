@@ -105,11 +105,11 @@ public abstract class CoServerSocket implements CoChannel {
         return !isOpen();
     }
     
-    public void bind(SocketAddress endpoint) {
+    public void bind(SocketAddress endpoint) throws CoIOException {
         bind(endpoint, BACKLOG_DEFAULT);
     }
     
-    public void bind(SocketAddress endpoint, int backlog) {
+    public void bind(SocketAddress endpoint, int backlog) throws CoIOException {
         this.coScheduler.bind(this, endpoint, backlog);
     }
     

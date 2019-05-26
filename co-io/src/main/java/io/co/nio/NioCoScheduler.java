@@ -46,17 +46,13 @@ import io.co.util.ReflectUtils;
  *
  */
 public class NioCoScheduler implements CoScheduler {
-    static final int ioRatio;
+    static final int ioRatio = initIoRatio();
     
-    static {
-        ioRatio = Integer.getInteger("io.co.ioRatio", 50);
-        if(ioRatio <= 0 || ioRatio > 100) {
-            final String error = "ioRatio "+ ioRatio + ", expect 0 < ioRatio <= 100";
-            throw new ExceptionInInitializerError(error);
-        }
-    }
+    final String name;
 
-    private volatile boolean started, shutdown, stopped;
+    private final Object startSync = new Object();
+    private volatile boolean started, shutdown;
+    private volatile boolean terminated;
     private volatile Thread schedThread;
     
     private NioCoChannel<?>[] chans;
@@ -76,20 +72,24 @@ public class NioCoScheduler implements CoScheduler {
     final BlockingQueue<Runnable> syncQueue;
     
     public NioCoScheduler(){
-        this(INIT_CONNECTIONS);
+        this(NAME, INIT_CONNECTIONS);
     }
     
-    public NioCoScheduler(int initConnections){
-        this(initConnections, MAX_CONNECTIONS, CHILD_COUNT);
+    public NioCoScheduler(String name){
+        this(name, INIT_CONNECTIONS);
     }
     
-    public NioCoScheduler(int initConnections, int childCount){
-        this(initConnections, MAX_CONNECTIONS, childCount);
+    public NioCoScheduler(String name, int initConnections){
+        this(name, initConnections, MAX_CONNECTIONS, CHILD_COUNT);
     }
     
-    public NioCoScheduler(int initConnections, int maxConnections, int childCount){
-        debug("NioCoScheduler(): initConnections = %s, maxConnections = %s, childCount = %s",
-                initConnections, maxConnections, childCount);
+    public NioCoScheduler(String name, int initConnections, int childCount){
+        this(name, initConnections, MAX_CONNECTIONS, childCount);
+    }
+    
+    public NioCoScheduler(String name, int initConnections, int maxConnections, int childCount){
+        debug("%s - NioCoScheduler(): initConnections = %s, maxConnections = %s, childCount = %s",
+                name, initConnections, maxConnections, childCount);
         if(initConnections < 0){
             throw new IllegalArgumentException("initConnections " + initConnections);
         }
@@ -104,6 +104,7 @@ public class NioCoScheduler implements CoScheduler {
             throw new IllegalArgumentException("childCount " + childCount);
         }
         
+        this.name  = name;
         this.chans = new NioCoChannel<?>[initConnections];
         this.maxConnections = maxConnections;
         
@@ -121,38 +122,51 @@ public class NioCoScheduler implements CoScheduler {
     
     @Override
     public void start() {
-        this.schedThread = new Thread("nio-scheduler") {
-            @Override
-            public void run() {
-                startAndServe();
+        synchronized(this.startSync) {
+            if(this.schedThread != null) {
+                throw new IllegalStateException("Scheduler had started");
             }
-        };
-        this.schedThread.start();
+            
+            this.schedThread = new Thread(this.name) {
+                @Override
+                public void run() {
+                    startAndServe();
+                }
+            };
+            this.schedThread.start();
+        }
     }
     
     @Override
     public void startAndServe() {
-        if(this.schedThread != null) {
-            if(!inScheduler() || inScheduler() && isStarted()) {
-                throw new IllegalStateException("Scheduler had started");
+        final String name = this.name;
+        
+        synchronized(this.startSync) {
+            if(this.schedThread != null) {
+                if(!inScheduler() || inScheduler() && isStarted()) {
+                    throw new IllegalStateException("Scheduler had started");
+                }
             }
+            this.started = true;
+            this.schedThread = Thread.currentThread();
         }
-        this.started = true;
-        this.schedThread = Thread.currentThread();
+        this.schedThread.setName(name);
         
         final NioCoScheduler[] childs = this.childs;
         final int minConns = this.chans.length;
         final int maxConnx = this.maxConnections;
         for(int i = 0; i < childs.length; ++i){
             // Child threads
-            final NioCoScheduler child = new NioCoScheduler(minConns, maxConnx, 0);
+            final String cname = String.format("%s-child-%s", name, i);
+            final NioCoScheduler child = 
+                    new NioCoScheduler(cname, minConns, maxConnx, 0);
             childs[i] = child;
-            (new Thread("nio-child-"+i) {
+            new Thread() {
                 @Override
                 public void run(){
                     child.startAndServe();
                 }
-            }).start();
+            }.start();
         }
         
         serve();
@@ -160,13 +174,14 @@ public class NioCoScheduler implements CoScheduler {
     
 
     @Override
-    public void await() throws InterruptedException {
+    public void awaitTermination() throws InterruptedException {
         this.schedThread.join();
     }
     
     @Override
-    public void await(long millis) throws InterruptedException {
+    public boolean awaitTermination(long millis) throws InterruptedException {
         this.schedThread.join(millis);
+        return isTerminated();
     }
     
     @Override
@@ -304,7 +319,7 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     @Override
-    public void wait(Continuation co, final long millis) {
+    public void await(Continuation co, final long millis) {
         if(millis < 0L) {
             throw new IllegalArgumentException("millis " + millis);
         }
@@ -367,14 +382,14 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     @Override
-    public boolean isStopped(){
-        return this.stopped;
+    public boolean isTerminated(){
+        return this.terminated;
     }
     
     @Override
     public boolean inScheduler() {
         final Thread schedThread = this.schedThread;
-        return (schedThread == null || schedThread == Thread.currentThread());
+        return (schedThread == Thread.currentThread());
     }
     
     NioCoScheduler register(final NioCoChannel<?> coChannel){
@@ -489,7 +504,7 @@ public class NioCoScheduler implements CoScheduler {
                 }
                 
             } catch (final Throwable uncaught){
-                this.stop();
+                this.terminate();
                 debug("Scheduler fatal", uncaught);
                 break;
             }
@@ -533,7 +548,7 @@ public class NioCoScheduler implements CoScheduler {
         }
         debug("tryShutdown(): actives %s", actives);
         if(actives == 0){
-            this.stop();
+            this.terminate();
             // Exit normally
             return true;
         }
@@ -627,13 +642,13 @@ public class NioCoScheduler implements CoScheduler {
         }
     }
     
-    protected void stop(){
-        debug("Nio coScheduler: stop");
+    protected void terminate(){
+        debug("Nio coScheduler: terminate()");
         IoUtils.close(this.selector);
         this.shutdown();
         this.chans   = null;
         this.timers  = null;
-        this.stopped = true;
+        this.terminated = true;
     }
     
     protected void resume(final NioCoChannel<?> coChannel) {
@@ -911,6 +926,15 @@ public class NioCoScheduler implements CoScheduler {
                 this.freeTimerSlot = -1;
             }
         }
+    }
+    
+    static int initIoRatio() {
+        final int ioRatio = Integer.getInteger("io.co.ioRatio", 50);
+        if(ioRatio <= 0 || ioRatio > 100) {
+            final String error = "ioRatio "+ ioRatio + ", expect 0 < ioRatio <= 100";
+            throw new ExceptionInInitializerError(error);
+        }
+        return ioRatio;
     }
 
     static class PostSocketRunner implements Runnable {

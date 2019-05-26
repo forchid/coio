@@ -80,7 +80,7 @@ public class EchoServer {
                     debug("flush: bytes %s", i);
                     
                     // Business time
-                    sock.getScheduler().wait(co, 0L);
+                    sock.getScheduler().await(co, 0L);
                 }
             } finally {
                 sock.close();

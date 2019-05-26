@@ -63,7 +63,8 @@ public class EchoClient {
         final AtomicInteger []remains = new AtomicInteger[schedCount];
         for(int i = 0; i < schedulers.length; ++i){
             final int j = i;
-            final NioCoScheduler sched = schedulers[j] = new NioCoScheduler(conns, conns, 0);
+            final NioCoScheduler sched = schedulers[j] = 
+                    new NioCoScheduler("nio-cosched-"+j, conns, conns, 0);
             remains[i] = new AtomicInteger();
             final Thread t = schedThreads[j] = new Thread(){
                 @Override

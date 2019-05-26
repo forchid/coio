@@ -35,7 +35,6 @@ public class AcceptTest extends TestCase {
         final NioCoServerSocket ssock = new NioCoServerSocket(996);
         
         final NioCoScheduler sched = ssock.getScheduler();
-        sched.start();
         
         final Coroutine connector = new Coroutine() {
             private static final long serialVersionUID = -5685704838735047546L;
@@ -59,11 +58,11 @@ public class AcceptTest extends TestCase {
             
         };
         
-        CoSocket sock = new NioCoSocket(connector, sched);
+        final CoSocket sock = new NioCoSocket(connector, sched);
         sock.connect(ssock.getLocalSocketAddress());
         
         System.out.println("wait");
-        sched.await();
+        sched.awaitTermination();
         sock.close();
         ssock.close();
         
