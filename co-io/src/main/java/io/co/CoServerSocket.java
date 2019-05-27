@@ -18,6 +18,7 @@ package io.co;
 
 import java.net.InetAddress;
 import java.net.SocketAddress;
+import java.util.concurrent.Future;
 
 import com.offbynull.coroutines.user.Continuation;
 import com.offbynull.coroutines.user.Coroutine;
@@ -105,12 +106,14 @@ public abstract class CoServerSocket implements CoChannel {
         return !isOpen();
     }
     
-    public void bind(SocketAddress endpoint) throws CoIOException {
-        bind(endpoint, BACKLOG_DEFAULT);
+    public Future<Void> bind(SocketAddress endpoint)
+            throws CoIOException {
+        return bind(endpoint, BACKLOG_DEFAULT);
     }
     
-    public void bind(SocketAddress endpoint, int backlog) throws CoIOException {
-        this.coScheduler.bind(this, endpoint, backlog);
+    public Future<Void> bind(SocketAddress endpoint, int backlog) 
+            throws CoIOException {
+        return this.coScheduler.bind(this, endpoint, backlog);
     }
     
     public CoSocket accept(Continuation co) {

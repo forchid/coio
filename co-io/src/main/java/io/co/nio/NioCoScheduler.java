@@ -22,6 +22,8 @@ import java.nio.channels.*;
 import java.text.*;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -199,10 +201,11 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     @Override
-    public void bind(final CoServerSocket coServerSocket, final SocketAddress endpoint, final int backlog)
-        throws CoIOException {
+    public Future<Void> bind(final CoServerSocket coServerSocket, 
+            final SocketAddress endpoint, final int backlog) throws CoIOException {
         final NioCoScheduler self = this;
-        self.execute(new Runnable(){
+        
+        final Runnable bindTask   = new Runnable(){
             @Override
             public void run() {
                 final NioCoServerSocket serverSocket = (NioCoServerSocket)coServerSocket;
@@ -226,7 +229,9 @@ public class NioCoScheduler implements CoScheduler {
                     }
                 }
             }
-        });
+        };
+        
+        return self.execute(bindTask);
     }
     
     @Override
@@ -306,18 +311,25 @@ public class NioCoScheduler implements CoScheduler {
     }
     
     @Override
-    public void execute(final Runnable task) throws CoIOException {
+    public Future<Void> execute(final Runnable task) throws CoIOException {
+        return execute(task, null);
+    }
+    
+    @Override
+    public <V> Future<V> execute(Runnable task, V value) throws CoIOException {
+        final FutureTask<V> future = new FutureTask<>(task, value);
+        
         if(this.inScheduler()) {
-            task.run();
-            return;
+            future.run();
+            return future;
         }
         
-        final boolean ok = this.syncQueue.offer(task);
+        final boolean ok = this.syncQueue.offer(future);
         if(ok){
             if(this.wakeup.compareAndSet(false, true)){
                 this.selector.wakeup();
             }
-            return;
+            return future;
         }
         
         throw new CoIOException("Execution queue full");

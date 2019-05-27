@@ -59,21 +59,13 @@ public class EchoClient {
         
         // Parallel scheduler
         final NioCoScheduler[] schedulers = new NioCoScheduler[schedCount];
-        final Thread[] schedThreads = new Thread[schedCount];
         final AtomicInteger []remains = new AtomicInteger[schedCount];
         for(int i = 0; i < schedulers.length; ++i){
             final int j = i;
-            final NioCoScheduler sched = schedulers[j] = 
-                    new NioCoScheduler("nio-cosched-"+j, conns, conns, 0);
+            final String name = "nio-cosched-"+j;
+            schedulers[j] = new NioCoScheduler(name, conns, conns, 0);
+            schedulers[j].start();
             remains[i] = new AtomicInteger();
-            final Thread t = schedThreads[j] = new Thread(){
-                @Override
-                public void run(){
-                    setName("Scheduler-"+j);
-                    sched.startAndServe();
-                }
-            };
-            t.start();
         }
         
         final AtomicInteger success = new AtomicInteger();
@@ -88,8 +80,8 @@ public class EchoClient {
                 remain.incrementAndGet();
             }
         } finally {
-            for(final Thread t : schedThreads){
-                t.join();
+            for(final NioCoScheduler sched : schedulers){
+                sched.awaitTermination();
             }
         }
         

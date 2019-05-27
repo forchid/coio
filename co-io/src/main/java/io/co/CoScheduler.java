@@ -18,6 +18,7 @@ package io.co;
 
 import java.io.IOException;
 import java.net.SocketAddress;
+import java.util.concurrent.Future;
 
 import com.offbynull.coroutines.user.Continuation;
 
@@ -48,7 +49,7 @@ public interface CoScheduler {
     CoSocket accept(Continuation co, CoServerSocket coServerSocket)
         throws CoIOException;
     
-    void bind(CoServerSocket coServerSocket, SocketAddress endpoint, int backlog)
+    Future<Void> bind(CoServerSocket coServerSocket, SocketAddress endpoint, int backlog)
         throws CoIOException;
     
     void connect(CoSocket coSocket, SocketAddress remote)
@@ -61,7 +62,9 @@ public interface CoScheduler {
     
     void schedule(CoSocket coSocket, Runnable task, long delay, long period);
     
-    void execute(Runnable task) throws CoIOException;
+    Future<Void> execute(Runnable task) throws CoIOException;
+    
+    <V> Future<V> execute(Runnable task, V value) throws CoIOException;
     
     void await(Continuation co, long millis);
     

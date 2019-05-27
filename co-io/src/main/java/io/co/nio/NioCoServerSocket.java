@@ -25,6 +25,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.channels.ServerSocketChannel;
+import java.util.concurrent.ExecutionException;
 
 import com.offbynull.coroutines.user.Coroutine;
 import com.offbynull.coroutines.user.CoroutineRunner;
@@ -107,7 +108,7 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
         initialize(port, backlog, bindAddr);
     }
     
-    private void initialize(int port, int backlog, InetAddress bindAddr) {
+    private void initialize(int port, int backlog, InetAddress bindAddr) throws CoIOException {
         // 1. Initialize server socket
         ServerSocketChannel ssChan = null;
         boolean failed = true;
@@ -155,8 +156,13 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
         if(port != -1) {
             try {
                 failed = true;
-                bind(new InetSocketAddress(bindAddr, port), backlog);
+                bind(new InetSocketAddress(bindAddr, port), backlog).get();
                 failed = false;
+            } catch(InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new CoIOException(e + "");
+            } catch(ExecutionException e) {
+                throw new CoIOException(e.getCause() + "");
             } finally {
                 if(failed) {
                     IoUtils.close(ssChan);
@@ -250,10 +256,15 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
         boolean failed = true;
         try {
             ssSocket = new NioCoServerSocket(acceptorClass, connectorClass, scheduler);
-            ssSocket.bind(endpoint, backlog);
+            ssSocket.bind(endpoint, backlog).get();
             // Boot itself
             scheduler.startAndServe();
             failed = false;
+        } catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new CoIOException(e + "");
+        } catch(ExecutionException e) {
+            throw new CoIOException(e.getCause() + "");
         } finally {
             if(failed){
                 IoUtils.close(ssSocket);
