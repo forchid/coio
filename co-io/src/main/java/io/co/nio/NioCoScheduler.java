@@ -159,15 +159,14 @@ public class NioCoScheduler implements CoScheduler {
         }
         this.schedThread.setName(name);
         
-        final NioCoScheduler[] childs = this.childs;
+        final NioCoScheduler[] children = this.childs;
         final int minConns = this.chans.length;
-        final int maxConnx = this.maxConnections;
-        for(int i = 0; i < childs.length; ++i){
+        for(int i = 0; i < children.length; ++i){
             // Child threads
+            final NioCoScheduler child;
             final String cname = String.format("%s-child-%s", name, i);
-            final NioCoScheduler child = 
-                    new NioCoScheduler(cname, minConns, maxConnx, 0);
-            childs[i] = child;
+            child = new NioCoScheduler(cname, minConns, this.maxConnections, 0);
+            children[i] = child;
             new Thread() {
                 @Override
                 public void run(){
@@ -203,9 +202,9 @@ public class NioCoScheduler implements CoScheduler {
     @Override
     public Future<Void> bind(final CoServerSocket coServerSocket, 
             final SocketAddress endpoint, final int backlog) throws CoIOException {
+
         final NioCoScheduler self = this;
-        
-        final Runnable bindTask   = new Runnable(){
+        final Runnable bindTask = new Runnable(){
             @Override
             public void run() {
                 final NioCoServerSocket serverSocket = (NioCoServerSocket)coServerSocket;
@@ -670,10 +669,9 @@ public class NioCoScheduler implements CoScheduler {
     
     protected void resume(final NioCoChannel<?> coChannel) {
         try {
-            if(coChannel.coRunner().execute() == false){
+            if(!coChannel.coRunner().execute()){
                 IoUtils.close(coChannel);
             }
-            return;
         } catch (final CoroutineException coe) {
             debug("Coroutine executes error", coe);
             IoUtils.close(coChannel);

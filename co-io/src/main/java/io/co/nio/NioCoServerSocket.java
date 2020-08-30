@@ -26,6 +26,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import com.offbynull.coroutines.user.Coroutine;
 import com.offbynull.coroutines.user.CoroutineRunner;
@@ -44,33 +45,21 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
     
     private int id = -1;
     
-    public NioCoServerSocket() {
-        this(DefaultAcceptor.class, DefaultConnector.class);
-    }
-    
-    public NioCoServerSocket(int port) {
-        this(port, DefaultAcceptor.class, DefaultConnector.class);
+    public NioCoServerSocket(Class<? extends Coroutine> connectorClass) {
+        this(DefaultAcceptor.class, connectorClass);
     }
     
     public NioCoServerSocket(int port,  Class<? extends Coroutine> connectorClass) {
         this(port, BACKLOG_DEFAULT, null, DefaultAcceptor.class, connectorClass, null);
     }
     
-    public NioCoServerSocket(int port, int backlog) {
-        this(port, backlog, DefaultAcceptor.class, DefaultConnector.class, null);
-    }
-    
     public NioCoServerSocket(int port, int backlog, Class<? extends Coroutine> connectorClass) {
         this(port, backlog, null, DefaultAcceptor.class, connectorClass, null);
     }
     
-    public NioCoServerSocket(int port, int backlog, InetAddress bindAddr) {
-        this(port, backlog, bindAddr, DefaultAcceptor.class, DefaultConnector.class, null);
-    }
-    
-    public NioCoServerSocket(int port, int backlog, InetAddress bindAddr,
+    public NioCoServerSocket(int port, int backlog, InetAddress bindAddress,
             Class<? extends Coroutine> connectorClass) {
-        this(port, backlog, bindAddr, DefaultAcceptor.class, connectorClass, null);
+        this(port, backlog, bindAddress, DefaultAcceptor.class, connectorClass, null);
     }
     
     public NioCoServerSocket(Class<? extends Coroutine> acceptorClass, 
@@ -101,14 +90,14 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
         this(port, backlog, null, acceptorClass, connectorClass, coScheduler);
     }
     
-    public NioCoServerSocket(int port, int backlog, InetAddress bindAddr, 
+    public NioCoServerSocket(int port, int backlog, InetAddress bindAddress,
             Class<? extends Coroutine> acceptorClass, 
             Class<? extends Coroutine> connectorClass, NioCoScheduler coScheduler) {
-        super(port, backlog, bindAddr, acceptorClass, connectorClass, coScheduler);
-        initialize(port, backlog, bindAddr);
+        super(port, backlog, bindAddress, acceptorClass, connectorClass, coScheduler);
+        initialize(port, backlog, bindAddress);
     }
     
-    private void initialize(int port, int backlog, InetAddress bindAddr) throws CoIOException {
+    private void initialize(int port, int backlog, InetAddress bindAddress) throws CoIOException {
         // 1. Initialize server socket
         ServerSocketChannel ssChan = null;
         boolean failed = true;
@@ -127,17 +116,17 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
         }
         
         // 2. initialize scheduler
-        boolean newSched = false;
+        boolean newScheduler = false;
         if(this.coScheduler == null) {
-            newSched = true;
+            newScheduler = true;
             NioCoScheduler scheduler = null;
             try {
                 failed = true;
                 final String sname;
                 if(port > 0) {
-                    sname = "nio-cosched-port-" + port;
+                    sname = "nio-" + port;
                 }else {
-                    sname = "nio-cosched-server";
+                    sname = "nio-server";
                 }
                 this.coScheduler = scheduler = new NioCoScheduler(sname);
                 scheduler.start();
@@ -156,17 +145,24 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
         if(port != -1) {
             try {
                 failed = true;
-                bind(new InetSocketAddress(bindAddr, port), backlog).get();
+                SocketAddress sa = new InetSocketAddress(bindAddress, port);
+                Future<?> bf = bind(sa, backlog);
+                bf.get();
                 failed = false;
             } catch(InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new CoIOException(e + "");
             } catch(ExecutionException e) {
-                throw new CoIOException(e.getCause() + "");
+                Throwable cause = e.getCause();
+                if (cause instanceof IOException) {
+                    throw new CoIOException("Bind failed", (IOException)cause);
+                } else {
+                    throw new IllegalStateException("Bind failed", cause);
+                }
             } finally {
                 if(failed) {
                     IoUtils.close(ssChan);
-                    if(newSched) {
+                    if(newScheduler) {
                         this.coScheduler.shutdown();
                     }
                 }

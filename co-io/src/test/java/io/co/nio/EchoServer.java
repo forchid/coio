@@ -43,12 +43,12 @@ public class EchoServer {
         System.setProperty("io.co.debug", "false");
         final String host = System.getProperty("io.co.host", "localhost");
         final int port = Integer.getInteger("io.co.port", 9999);
-        final InetAddress bindAddr = InetAddress.getByName(host);
+        final InetAddress bindAddress = InetAddress.getByName(host);
         
-        final CoServerSocket ssock = 
-                new NioCoServerSocket(port, 150, bindAddr, Connector.class);
-        ssock.getScheduler().awaitTermination();
-        ssock.close();
+        final CoServerSocket server =
+                new NioCoServerSocket(port, 150, bindAddress, Connector.class);
+        server.getScheduler().awaitTermination();
+        server.close();
         
         System.out.println("Bye");
     }
@@ -68,7 +68,7 @@ public class EchoServer {
                 final byte[] b = new byte[512];
                 for(;;) {
                     int i = 0;
-                    for(; i < b.length;) {
+                    while (i < b.length) {
                         debug("read: offset %s", i);
                         final int n = in.read(co, b, i, b.length-i);
                         debug("read: bytes %s", n);

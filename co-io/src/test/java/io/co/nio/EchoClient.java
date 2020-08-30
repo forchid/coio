@@ -46,47 +46,46 @@ public class EchoClient {
         System.setProperty("io.co.soTimeout", "30000");
         final String host = System.getProperty("io.co.host", "localhost");
         
-        final int conns, schedCount;
+        final int connectionCount, schedulerCount;
         if(args.length > 0){
-            conns = Integer.parseInt(args[0]);
+            connectionCount = Integer.parseInt(args[0]);
         }else{
-            conns = 250;
+            connectionCount = 250;
         }
-        schedCount = Math.min(2, conns);
+        schedulerCount = Math.min(2, connectionCount);
         
         final long ts = System.currentTimeMillis();
         final SocketAddress remote = new InetSocketAddress(host, 9999);
         
         // Parallel scheduler
-        final NioCoScheduler[] schedulers = new NioCoScheduler[schedCount];
-        final AtomicInteger []remains = new AtomicInteger[schedCount];
-        for(int i = 0; i < schedulers.length; ++i){
-            final int j = i;
-            final String name = "nio-cosched-"+j;
-            schedulers[j] = new NioCoScheduler(name, conns, conns, 0);
-            schedulers[j].start();
+        final NioCoScheduler[] schedulers = new NioCoScheduler[schedulerCount];
+        final AtomicInteger []remains = new AtomicInteger[schedulerCount];
+        for (int i = 0; i < schedulers.length; ++i) {
+            final String name = "nio-"+ i;
+            schedulers[i] = new NioCoScheduler(name, connectionCount, connectionCount, 0);
+            schedulers[i].start();
             remains[i] = new AtomicInteger();
         }
         
-        final AtomicInteger success = new AtomicInteger();
+        final AtomicInteger successCount = new AtomicInteger();
         try {
-            for(int i = 0; i < conns; ++i){
+            for(int i = 0; i < connectionCount; ++i){
                 final int j = i % schedulers.length;
                 final NioCoScheduler scheduler = schedulers[j];
                 final AtomicInteger remain = remains[j];
-                final Coroutine connector = new Connector(i, success, remain, scheduler);
+                final Coroutine connector = new Connector(i, successCount, remain, scheduler);
                 final CoSocket sock = new NioCoSocket(connector, scheduler);
                 sock.connect(remote, 30000);
                 remain.incrementAndGet();
             }
         } finally {
-            for(final NioCoScheduler sched : schedulers){
-                sched.awaitTermination();
+            for(final NioCoScheduler s : schedulers){
+                s.awaitTermination();
             }
         }
         
-        System.out.println(String.format("Bye: conns = %s, success = %s, time = %sms",
-              conns, success, System.currentTimeMillis() - ts));
+        System.out.println(String.format("Bye: connectionCount = %s, successCount = %s, time = %sms",
+                connectionCount, successCount, System.currentTimeMillis() - ts));
     }
     
     static class Connector implements Coroutine {
@@ -132,14 +131,14 @@ public class EchoClient {
                     out.flush(co);
                     
                     int rbytes = 0;
-                    for(; rbytes < wbytes;) {
+                    while (rbytes < wbytes) {
                         final int n = in.read(co, b, rbytes, b.length - rbytes);
                         if(n == -1) {
                             throw new EOFException();
                         }
                         rbytes += n;
                     }
-                    
+
                     //System.out.println(String.format("wbytes %d, rbytes %d ", wbytes, rbytes));
                 }
                 success.incrementAndGet();

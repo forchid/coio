@@ -39,7 +39,7 @@ class PassiveNioCoSocket extends NioCoSocket {
     }
 
     @Override
-    public void connect(SocketAddress endpoint, int timeout)throws IOException {
+    public void connect(SocketAddress endpoint, int timeout) throws IOException {
         throw new UnsupportedOperationException();
     }
 

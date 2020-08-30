@@ -74,7 +74,7 @@ public abstract class CoServerSocket implements CoChannel {
         this(port, backlog, null, acceptorClass, connectorClass, coScheduler);
     }
     
-    protected CoServerSocket(int port, int backlog, InetAddress bindAddr, 
+    protected CoServerSocket(int port, int backlog, InetAddress bindAddress,
             Class<? extends Coroutine> acceptorClass, 
             Class<? extends Coroutine> connectorClass, CoScheduler coScheduler) {
         if(port < 0 || port > 65535) {
