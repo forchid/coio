@@ -36,6 +36,7 @@ import io.co.util.ReflectUtils;
 public abstract class CoServerSocket implements CoChannel {
     
     protected static final int BACKLOG_DEFAULT = 150;
+    protected static final int PORT_DEFAULT    = -1;
 
     protected final CoScheduler scheduler;
     protected final Class<? extends Coroutine> acceptorClass;
