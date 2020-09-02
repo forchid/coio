@@ -1,0 +1,84 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.co</groupId>
+  <artifactId>coio</artifactId>
+  <version>0.0.2</version>
+  <packaging>jar</packaging>
+
+  <name>${project.artifactId}</name>
+  <description>An IO library based on coroutines</description>
+  <url>http://maven.apache.org</url>
+
+  <properties>
+    <javaVersion>1.8</javaVersion>
+    <coroutinesVersion>1.4.2</coroutinesVersion>
+    <maven.compiler.source>${javaVersion}</maven.compiler.source>
+    <maven.compiler.target>${javaVersion}</maven.compiler.target>
+    <maven.compiler.compilerVersion>${javaVersion}</maven.compiler.compilerVersion>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>3.8.1</version>
+      <scope>test</scope>
+    </dependency>
+    
+    <dependency>
+      <groupId>com.offbynull.coroutines</groupId>
+      <artifactId>user</artifactId>
+      <version>${coroutinesVersion}</version>
+    </dependency>
+    
+    <dependency>
+      <groupId>com.offbynull.coroutines</groupId>
+      <artifactId>instrumenter</artifactId>
+      <version>${coroutinesVersion}</version>
+    </dependency>
+    
+    <dependency>
+      <groupId>com.offbynull.coroutines</groupId>
+      <artifactId>java-agent</artifactId>
+      <version>${coroutinesVersion}</version>
+    </dependency>
+    
+    <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-all</artifactId>
+        <version>4.1.42.Final</version>
+    </dependency>
+    
+  </dependencies>
+  
+  <build>
+    <plugins>
+      <plugin>
+          <groupId>com.offbynull.coroutines</groupId>
+          <artifactId>maven-plugin</artifactId>
+          <version>${coroutinesVersion}</version>
+          <executions>      
+            <execution>
+              <id>coroutines-instrument-id</id>
+              <goals>
+                <goal>instrument</goal>
+              </goals>
+            </execution>
+            <execution>
+              <id>test-coroutines-instrument-id</id>
+              <goals>
+                <goal>test-instrument</goal>
+              </goals>
+            </execution>
+          </executions>
+          <configuration>
+            <debugMode>true</debugMode>
+          </configuration>
+      </plugin>
+    </plugins>
+  </build>
+  
+</project>
