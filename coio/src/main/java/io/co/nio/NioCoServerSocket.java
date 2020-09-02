@@ -111,7 +111,7 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
             ssChan = ServerSocketChannel.open();
             ssChan.configureBlocking(false);
             this.channel = ssChan;
-            this.coRunner = new CoroutineRunner(coAcceptor);
+            this.coRunner = new CoroutineRunner(this.coAcceptor);
             failed = false;
         } catch (final IOException cause){
             throw new CoIOException(cause);

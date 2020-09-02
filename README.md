@@ -6,17 +6,10 @@ A high performance io framework based on coroutines
 ```java
 public class EchoServer {
 
+    static final int PORT = Integer.getInteger("io.co.port", 9999);
+
     public static void main(String[] args) throws Exception {
-        System.setProperty("io.co.soTimeout", "30000");
-        System.setProperty("io.co.maxConnections", "10000");
-        //System.setProperty("io.co.scheduler.childrenCount", "2");
-        System.setProperty("io.co.debug", "false");
-        final String host = System.getProperty("io.co.host", "localhost");
-        final int port = Integer.getInteger("io.co.port", 9999);
-        final InetAddress bindAddress = InetAddress.getByName(host);
-        
-        final CoServerSocket server =
-                new NioCoServerSocket(port, 150, bindAddress, Connector.class);
+        CoServerSocket server = new NioCoServerSocket(PORT, Connector.class);
         server.getScheduler().awaitTermination();
         server.close();
         
@@ -27,20 +20,20 @@ public class EchoServer {
         private static final long serialVersionUID = 1L;
 
         @Override
-        public void run(Continuation co) throws Exception {
-            final CoSocket sock = (CoSocket)co.getContext();
-            //System.out.println("Connected: " + sock);
+        public void run(Continuation co) {
+            final CoSocket socket = (CoSocket)co.getContext();
+            //System.out.println("Connected: " + socket);
             
-            final CoInputStream in = sock.getInputStream();
-            final CoOutputStream out = sock.getOutputStream();
-            
+            final CoInputStream in = socket.getInputStream();
+            final CoOutputStream out = socket.getOutputStream();
+            CoScheduler scheduler = socket.getScheduler();
             try {
                 final byte[] b = new byte[512];
-                for(;;) {
+                while (!scheduler.isShutdown()) {
                     int i = 0;
                     while (i < b.length) {
                         debug("read: offset %s", i);
-                        final int n = in.read(co, b, i, b.length-i);
+                        final int n = in.read(co, b, i, b.length - i);
                         debug("read: bytes %s", n);
                         if(n == -1) {
                             //System.out.println("Server: EOF");
@@ -53,14 +46,20 @@ public class EchoServer {
                     debug("flush: bytes %s", i);
                     
                     // Business time
-                    sock.getScheduler().await(co, 0L);
+                    scheduler.await(co, 0L);
                 }
             } finally {
-                sock.close();
-                //sock.getCoScheduler().shutdown();
+                socket.close();
+                //scheduler.shutdown();
             }
         }
         
+    }
+
+    static {
+        System.setProperty("io.co.soTimeout", "30000");
+        System.setProperty("io.co.maxConnections", "10000");
+        System.setProperty("io.co.debug", "false");
     }
 
 }
@@ -70,6 +69,7 @@ public class EchoServer {
 public class EchoClient {
     
     static final boolean debug = Boolean.getBoolean("io.co.debug");
+    static final int PORT = Integer.getInteger("io.co.port", 9999);
 
     public static void main(String[] args) throws Exception {
         System.setProperty("io.co.soTimeout", "30000");
@@ -84,7 +84,7 @@ public class EchoClient {
         schedulerCount = Math.min(2, connectionCount);
         
         final long ts = System.currentTimeMillis();
-        final SocketAddress remote = new InetSocketAddress(host, 9999);
+        final SocketAddress remote = new InetSocketAddress(host, PORT);
         
         // Parallel scheduler
         final NioCoScheduler[] schedulers = new NioCoScheduler[schedulerCount];
@@ -171,7 +171,7 @@ public class EchoClient {
                     //System.out.println(String.format("written %d, reads %d ", written, reads));
                 }
                 success.incrementAndGet();
-                System.out.println(String.format("[%s]Client-%05d: time %dms", 
+                System.out.println(String.format("[%s] Client-%05d: time %dms",
                      Thread.currentThread().getName(), id, (System.currentTimeMillis() - ts)));
             } finally {
                 remain.decrementAndGet();

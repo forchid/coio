@@ -41,6 +41,7 @@ import static io.co.nio.NioCoScheduler.*;
 public class EchoClient {
     
     static final boolean debug = Boolean.getBoolean("io.co.debug");
+    static final int PORT = Integer.getInteger("io.co.port", 9999);
 
     public static void main(String[] args) throws Exception {
         System.setProperty("io.co.soTimeout", "30000");
@@ -55,7 +56,7 @@ public class EchoClient {
         schedulerCount = Math.min(2, connectionCount);
         
         final long ts = System.currentTimeMillis();
-        final SocketAddress remote = new InetSocketAddress(host, 9999);
+        final SocketAddress remote = new InetSocketAddress(host, PORT);
         
         // Parallel scheduler
         final NioCoScheduler[] schedulers = new NioCoScheduler[schedulerCount];
@@ -142,7 +143,7 @@ public class EchoClient {
                     //System.out.println(String.format("written %d, reads %d ", written, reads));
                 }
                 success.incrementAndGet();
-                System.out.println(String.format("[%s]Client-%05d: time %dms", 
+                System.out.println(String.format("[%s] Client-%05d: time %dms",
                      Thread.currentThread().getName(), id, (System.currentTimeMillis() - ts)));
             } finally {
                 remain.decrementAndGet();
