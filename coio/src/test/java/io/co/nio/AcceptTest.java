@@ -17,11 +17,8 @@
 package io.co.nio;
 
 import com.offbynull.coroutines.user.Continuation;
-import com.offbynull.coroutines.user.Coroutine;
 
-import io.co.CoOutputStream;
-import io.co.CoScheduler;
-import io.co.CoSocket;
+import io.co.*;
 import io.co.util.IoUtils;
 import junit.framework.TestCase;
 
@@ -57,26 +54,16 @@ public class AcceptTest extends TestCase {
         System.out.println("OK");
     }
 
-    static class ClientHandler implements Coroutine {
+    static class ClientHandler implements SocketHandler {
 
         private static final long serialVersionUID = 1L;
 
         @Override
-        public void run(Continuation co) throws Exception {
-            final Object ctx = co.getContext();
-            CoScheduler scheduler = null;
-            CoSocket socket = null;
+        public void handle(Continuation co, CoSocket socket) throws Exception {
+            CoScheduler scheduler = socket.getScheduler();
             try {
-                if(ctx instanceof Throwable) {
-                    System.err.print("Connection failed: ");
-                    final Throwable cause = (Throwable)ctx;
-                    cause.printStackTrace();
-                    return;
-                }
                 String threadName = Thread.currentThread().getName();
                 System.out.println(threadName + ": connected");
-                socket = (CoSocket)ctx;
-                scheduler = socket.getScheduler();
                 CoOutputStream out = socket.getOutputStream();
                 out.write(co, 1);
                 out.flush(co);
@@ -84,30 +71,21 @@ public class AcceptTest extends TestCase {
                 if (i != 1) throw new IOException("Echo error");
             } finally {
                 IoUtils.close(socket);
-                if (scheduler != null) scheduler.shutdown();
+                scheduler.shutdown();
             }
         }
 
     }
 
-    static class ServerHandler implements Coroutine {
+    static class ServerHandler implements SocketHandler {
 
         private static final long serialVersionUID = 1L;
 
         @Override
-        public void run(Continuation co) throws Exception {
-            final Object ctx = co.getContext();
-            CoSocket socket = null;
+        public void handle(Continuation co, CoSocket socket) throws Exception {
             try {
-                if(ctx instanceof Throwable) {
-                    System.err.print("Connection failed: ");
-                    final Throwable cause = (Throwable)ctx;
-                    cause.printStackTrace();
-                    return;
-                }
                 String threadName = Thread.currentThread().getName();
                 System.out.println(threadName + ": accepted");
-                socket = (CoSocket)ctx;
                 int i = socket.getInputStream().read(co);
                 if (i != 1) throw new IOException("Request error");
                 CoOutputStream out = socket.getOutputStream();

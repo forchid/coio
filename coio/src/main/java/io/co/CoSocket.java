@@ -19,8 +19,6 @@ package io.co;
 import java.io.IOException;
 import java.net.SocketAddress;
 
-import com.offbynull.coroutines.user.Coroutine;
-
 import io.co.nio.NioCoSocket;
 
 /**
@@ -35,15 +33,15 @@ public abstract class CoSocket implements CoChannel {
     protected static final int SO_TIMEOUT = Integer.getInteger("io.co.soTimeout", 0);
 
     protected final CoScheduler scheduler;
-    protected final Coroutine coConnector;
+    protected final SocketHandler coConnector;
     private int soTimeout = SO_TIMEOUT;
     
-    protected CoSocket(Coroutine coConnector, CoScheduler scheduler) {
+    protected CoSocket(SocketHandler coConnector, CoScheduler scheduler) {
         this.scheduler = scheduler;
         this.coConnector = coConnector;
     }
     
-    public Coroutine getConnector(){
+    public ChannelHandler<? extends CoSocket> getConnector(){
         return this.coConnector;
     }
     
@@ -78,13 +76,13 @@ public abstract class CoSocket implements CoChannel {
         this.scheduler.close(this);
     }
     
-    public static void startAndServe(Coroutine coConnector, SocketAddress remote)
+    public static void startAndServe(SocketHandler coConnector, SocketAddress remote)
             throws CoIOException {
         NioCoSocket.startAndServe(coConnector, remote);
     }
     
-    public static void startAndServe(Coroutine coConnector, SocketAddress remote, int timeout)
-            throws CoIOException {
+    public static void startAndServe(SocketHandler coConnector, SocketAddress remote,
+                                     int timeout) throws CoIOException {
         NioCoSocket.startAndServe(coConnector, remote, timeout);
     }
     

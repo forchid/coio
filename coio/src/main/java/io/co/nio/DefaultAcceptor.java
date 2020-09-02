@@ -19,10 +19,9 @@ package io.co.nio;
 import java.net.SocketAddress;
 import java.nio.channels.ServerSocketChannel;
 
-import io.co.CoScheduler;
+import io.co.*;
 
 import com.offbynull.coroutines.user.Continuation;
-import com.offbynull.coroutines.user.Coroutine;
 
 /**
  * The default accept coroutine.
@@ -31,7 +30,8 @@ import com.offbynull.coroutines.user.Coroutine;
  * @since 2019-05-14
  *
  */
-public class DefaultAcceptor implements Coroutine {
+public class DefaultAcceptor implements ServerSocketHandler {
+
     private static final long serialVersionUID = 1608438566384500434L;
     
     public DefaultAcceptor(){
@@ -39,20 +39,16 @@ public class DefaultAcceptor implements Coroutine {
     }
     
     @Override
-    public void run(final Continuation co) throws Exception {
-        final Object context = co.getContext();
-
-        if (context instanceof Exception) throw (Exception)context;
-        if (context instanceof Error) throw (Error)context;
-
-        NioCoServerSocket ssSocket = (NioCoServerSocket)context;
-        final ServerSocketChannel chan = ssSocket.channel();
+    public void handle(Continuation co, CoServerSocket serverSocket) throws Exception {
+        NioCoServerSocket nioServerSocket = (NioCoServerSocket)serverSocket;
+        ServerSocketChannel chan = nioServerSocket.channel();
         SocketAddress sa = chan.getLocalAddress();
         NioCoScheduler.debug("Server listen on %s", sa);
-        final CoScheduler scheduler = ssSocket.getScheduler();
+
+        CoScheduler scheduler = serverSocket.getScheduler();
         while (!scheduler.isShutdown()) {
-            ssSocket.accept(co);
+            serverSocket.accept(co);
         }
     }
-    
+
 }

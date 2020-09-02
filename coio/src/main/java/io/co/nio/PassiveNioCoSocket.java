@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.net.SocketAddress;
 import java.nio.channels.SocketChannel;
 
-import com.offbynull.coroutines.user.Coroutine;
+import io.co.SocketHandler;
 
 /** 
  * @author little-pan
@@ -29,7 +29,8 @@ import com.offbynull.coroutines.user.Coroutine;
  */
 class PassiveNioCoSocket extends NioCoSocket {
     
-    public PassiveNioCoSocket(Coroutine coConnector, SocketChannel channel, NioCoScheduler coScheduler){
+    public PassiveNioCoSocket(SocketHandler coConnector,
+                              SocketChannel channel, NioCoScheduler coScheduler){
         super(coConnector, channel, coScheduler);
     }
     

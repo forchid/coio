@@ -28,15 +28,10 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.offbynull.coroutines.user.Continuation;
-import com.offbynull.coroutines.user.Coroutine;
 import com.offbynull.coroutines.user.CoroutineException;
 import com.offbynull.coroutines.user.CoroutineRunner;
 
-import io.co.CoChannel;
-import io.co.CoIOException;
-import io.co.CoScheduler;
-import io.co.CoServerSocket;
-import io.co.CoSocket;
+import io.co.*;
 import io.co.util.IoUtils;
 import io.co.util.ReflectUtils;
 
@@ -193,23 +188,27 @@ public class NioCoScheduler implements CoScheduler {
     public Future<Void> bind(final CoServerSocket serverSocket,
             final SocketAddress endpoint, final int backlog) throws CoIOException {
 
+        final boolean inScheduler = inScheduler();
         final NioCoScheduler self = this;
         final Runnable bindTask = () -> {
-            final NioCoServerSocket nioServerSocket = (NioCoServerSocket)serverSocket;
-            final ServerSocketChannel ssChan = nioServerSocket.channel();
+            NioCoServerSocket nioServerSocket = (NioCoServerSocket)serverSocket;
+            CoroutineRunner coRunner = nioServerSocket.coRunner();
             boolean failed = true;
             try {
                 self.register(nioServerSocket);
+                ServerSocketChannel ssChan = nioServerSocket.channel();
                 ssChan.bind(endpoint, backlog);
                 ssChan.register(self.selector, SelectionKey.OP_ACCEPT, nioServerSocket);
-                final CoroutineRunner coRunner = nioServerSocket.coRunner();
                 coRunner.setContext(nioServerSocket);
                 coRunner.execute();
                 failed = false;
-            } catch(final IOException e){
-                final CoroutineRunner coRunner = nioServerSocket.coRunner();
-                coRunner.setContext(e);
-                self.resume(nioServerSocket);
+            } catch(final IOException e) {
+                if (inScheduler) {
+                    coRunner.setContext(e);
+                    self.resume(nioServerSocket);
+                } else {
+                    throw new CoIOException(e);
+                }
             } finally {
                 if(failed){
                     IoUtils.close(nioServerSocket);
@@ -708,14 +707,14 @@ public class NioCoScheduler implements CoScheduler {
                 chan.socket().setTcpNoDelay(true);
                 
                 // 1. Create coSocket
-                final Class<? extends Coroutine> connectorClass = cosSocket.getConnectorClass();
+                Class<? extends SocketHandler> conClass = cosSocket.getConnectorClass();
                 if(this.children.length != 0){
                     // 3-2. Post coSocket
-                    postSocket(chan, connectorClass);
+                    postSocket(chan, conClass);
                     failed = false;
                     return;
                 }
-                final Coroutine coConnector = ReflectUtils.newObject(connectorClass);
+                final SocketHandler coConnector = ReflectUtils.newObject(conClass);
                 coSocket = new PassiveNioCoSocket(coConnector, chan, this);
             } catch (final CoIOException cause){
                 debug("Create accepted socket error", cause);
@@ -741,7 +740,8 @@ public class NioCoScheduler implements CoScheduler {
         }
     }
     
-    private void postSocket(SocketChannel channel, Class<? extends Coroutine> connectorClass) {
+    private void postSocket(SocketChannel channel,
+                            Class<? extends SocketHandler> connectorClass) {
         final NioCoScheduler[] children = this.children;
         final int childCount = children.length;
         NioCoScheduler child = null;
@@ -930,10 +930,10 @@ public class NioCoScheduler implements CoScheduler {
         
         final NioCoScheduler scheduler;
         final SocketChannel channel;
-        final Class<? extends Coroutine> connectorClass;
+        final Class<? extends SocketHandler> connectorClass;
 
-        PostSocketRunner(NioCoScheduler scheduler, 
-                SocketChannel channel, Class<? extends Coroutine> connectorClass){
+        PostSocketRunner(NioCoScheduler scheduler, SocketChannel channel,
+                         Class<? extends SocketHandler> connectorClass){
             this.scheduler = scheduler;
             this.channel   = channel;
             this.connectorClass = connectorClass;
@@ -945,7 +945,7 @@ public class NioCoScheduler implements CoScheduler {
             NioCoSocket coSocket = null;
             boolean failed = true;
             try {
-                final Coroutine connector = ReflectUtils.newObject(connectorClass);
+                SocketHandler connector = ReflectUtils.newObject(connectorClass);
                 coSocket = new PassiveNioCoSocket(connector, this.channel, scheduler);
                 this.scheduler.register(coSocket);
                 final CoroutineRunner coRunner = coSocket.coRunner();

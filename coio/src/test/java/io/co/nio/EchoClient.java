@@ -19,6 +19,7 @@ package io.co.nio;
 import io.co.CoInputStream;
 import io.co.CoOutputStream;
 import io.co.CoSocket;
+import io.co.SocketHandler;
 import io.co.util.IoUtils;
 
 import java.io.EOFException;
@@ -27,7 +28,6 @@ import java.net.SocketAddress;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.offbynull.coroutines.user.Continuation;
-import com.offbynull.coroutines.user.Coroutine;
 
 import static io.co.nio.NioCoScheduler.*;
 
@@ -39,8 +39,7 @@ import static io.co.nio.NioCoScheduler.*;
  *
  */
 public class EchoClient {
-    
-    static final boolean debug = Boolean.getBoolean("io.co.debug");
+
     static final int PORT = Integer.getInteger("io.co.port", 9999);
 
     public static void main(String[] args) throws Exception {
@@ -74,7 +73,7 @@ public class EchoClient {
                 final int j = i % schedulers.length;
                 final NioCoScheduler scheduler = schedulers[j];
                 final AtomicInteger remain = remains[j];
-                final Coroutine connector = new Connector(i, successCount, remain, scheduler);
+                final SocketHandler connector = new Connector(i, successCount, remain, scheduler);
                 final CoSocket sock = new NioCoSocket(connector, scheduler);
                 sock.connect(remote, 30000);
                 remain.incrementAndGet();
@@ -89,7 +88,7 @@ public class EchoClient {
                 connectionCount, successCount, System.currentTimeMillis() - ts));
     }
     
-    static class Connector implements Coroutine {
+    static class Connector implements SocketHandler {
         private static final long serialVersionUID = 1L;
         
         final NioCoScheduler scheduler;
@@ -105,24 +104,12 @@ public class EchoClient {
         }
 
         @Override
-        public void run(Continuation co) throws Exception {
-            CoSocket sock = null;
+        public void handle(Continuation co, CoSocket socket) throws Exception {
             try {
-                final Object ctx = co.getContext();
-                if(ctx instanceof Throwable){
-                    // Connect fail
-                    if(debug) {
-                        final Throwable cause = (Throwable)ctx; 
-                        cause.printStackTrace();
-                    }
-                    return;
-                }
-                
-                sock = (CoSocket)ctx;
-                debug("Connected: %s", sock);
+                debug("Connected: %s", socket);
                 final long ts = System.currentTimeMillis();
-                final CoInputStream in = sock.getInputStream();
-                final CoOutputStream out = sock.getOutputStream();
+                final CoInputStream in = socket.getInputStream();
+                final CoOutputStream out = socket.getOutputStream();
                 
                 final byte[] b = new byte[512];
                 final int requests = 100;
@@ -147,7 +134,7 @@ public class EchoClient {
                      Thread.currentThread().getName(), id, (System.currentTimeMillis() - ts)));
             } finally {
                 remain.decrementAndGet();
-                IoUtils.close(sock);
+                IoUtils.close(socket);
                 // Shutdown only when all connection completed
                 if(remain.compareAndSet(0, 0)){
                     scheduler.shutdown();

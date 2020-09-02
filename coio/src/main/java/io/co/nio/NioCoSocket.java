@@ -16,11 +16,7 @@
  */
 package io.co.nio;
 
-import io.co.CoIOException;
-import io.co.CoInputStream;
-import io.co.CoOutputStream;
-import io.co.CoScheduler;
-import io.co.CoSocket;
+import io.co.*;
 import io.co.util.IoUtils;
 
 import java.io.IOException;
@@ -28,7 +24,6 @@ import java.net.SocketAddress;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 
-import com.offbynull.coroutines.user.Coroutine;
 import com.offbynull.coroutines.user.CoroutineRunner;
 
 /**
@@ -49,7 +44,8 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     private NioCoTimer readTimer;
     final CoroutineRunner coRunner;
     
-    public NioCoSocket(Coroutine coConnector, SocketChannel channel, NioCoScheduler coScheduler) {
+    public NioCoSocket(SocketHandler coConnector, SocketChannel channel,
+                       NioCoScheduler coScheduler) {
         super(coConnector, coScheduler);
         
         this.channel = channel;
@@ -59,7 +55,7 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
         this.coRunner = new CoroutineRunner(coConnector);
     }
     
-    public NioCoSocket(Coroutine coConnector, NioCoScheduler coScheduler) {
+    public NioCoSocket(SocketHandler coConnector, NioCoScheduler coScheduler) {
         super(coConnector, coScheduler);
         
         SocketChannel chan = null;
@@ -164,17 +160,20 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
         return String.format("%s[id=%d#%d]", clazz, this.id, this.hashCode());
     }
     
-    public static void startAndServe(Coroutine coConnector, SocketAddress remote)
-            throws CoIOException {
+    public static void startAndServe(SocketHandler coConnector,
+                                     SocketAddress remote) throws CoIOException {
         startAndServe(coConnector, remote, 0);
     }
     
-    public static void startAndServe(Coroutine coConnector, SocketAddress remote, int timeout)
+    public static void startAndServe(SocketHandler coConnector,
+                                     SocketAddress remote, int timeout)
             throws CoIOException {
-        final int initConns = CoScheduler.INIT_CONNECTIONS;
-        final int maxConns  = CoScheduler.MAX_CONNECTIONS;
-        final NioCoScheduler scheduler = 
-                new NioCoScheduler("nio-cosched-client", initConns, maxConns, 0);
+
+        final NioCoScheduler scheduler;
+        final int initCon = CoScheduler.INIT_CONNECTIONS;
+        final int maxCon = CoScheduler.MAX_CONNECTIONS;
+        String name = "nio-client";
+        scheduler = new NioCoScheduler(name, initCon, maxCon, 0);
         NioCoSocket socket = null;
         boolean failed = true;
         try {
