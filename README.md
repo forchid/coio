@@ -7,21 +7,38 @@ A high performance io framework based on coroutines
 public class EchoServer {
 
     static final int PORT = Integer.getInteger("io.co.port", 9999);
+    static final CountDownLatch startLatch = new CountDownLatch(1);
+    static volatile Thread serverThread;
 
     public static void main(String[] args) throws Exception {
+        serverThread = Thread.currentThread();
         CoServerSocket server = new NioCoServerSocket(PORT, Connector.class);
-        server.getScheduler().awaitTermination();
-        server.close();
-        
-        System.out.println("Bye");
+        startLatch.countDown();
+        try {
+            server.getScheduler().awaitTermination();
+            server.close();
+        } catch (InterruptedException e) {
+            // Ignore
+        } finally {
+            server.getScheduler().shutdown();
+            System.out.println("Bye");
+        }
     }
 
-    static class Connector implements Coroutine {
+    public static void shutdown() {
+        Thread serverThread = EchoServer.serverThread;
+        if (serverThread != null) serverThread.interrupt();
+    }
+
+    public static void await() throws InterruptedException {
+        startLatch.await();
+    }
+
+    static class Connector implements SocketHandler {
         private static final long serialVersionUID = 1L;
 
         @Override
-        public void run(Continuation co) {
-            final CoSocket socket = (CoSocket)co.getContext();
+        public void handle(Continuation co, CoSocket socket) {
             //System.out.println("Connected: " + socket);
             
             final CoInputStream in = socket.getInputStream();
@@ -67,8 +84,7 @@ public class EchoServer {
 ## 2. Echo client
 ```java
 public class EchoClient {
-    
-    static final boolean debug = Boolean.getBoolean("io.co.debug");
+
     static final int PORT = Integer.getInteger("io.co.port", 9999);
 
     public static void main(String[] args) throws Exception {
@@ -102,7 +118,7 @@ public class EchoClient {
                 final int j = i % schedulers.length;
                 final NioCoScheduler scheduler = schedulers[j];
                 final AtomicInteger remain = remains[j];
-                final Coroutine connector = new Connector(i, successCount, remain, scheduler);
+                final SocketHandler connector = new Connector(i, successCount, remain, scheduler);
                 final CoSocket sock = new NioCoSocket(connector, scheduler);
                 sock.connect(remote, 30000);
                 remain.incrementAndGet();
@@ -117,7 +133,7 @@ public class EchoClient {
                 connectionCount, successCount, System.currentTimeMillis() - ts));
     }
     
-    static class Connector implements Coroutine {
+    static class Connector implements SocketHandler {
         private static final long serialVersionUID = 1L;
         
         final NioCoScheduler scheduler;
@@ -133,24 +149,12 @@ public class EchoClient {
         }
 
         @Override
-        public void run(Continuation co) throws Exception {
-            CoSocket sock = null;
+        public void handle(Continuation co, CoSocket socket) throws Exception {
             try {
-                final Object ctx = co.getContext();
-                if(ctx instanceof Throwable){
-                    // Connect fail
-                    if(debug) {
-                        final Throwable cause = (Throwable)ctx; 
-                        cause.printStackTrace();
-                    }
-                    return;
-                }
-                
-                sock = (CoSocket)ctx;
-                debug("Connected: %s", sock);
+                debug("Connected: %s", socket);
                 final long ts = System.currentTimeMillis();
-                final CoInputStream in = sock.getInputStream();
-                final CoOutputStream out = sock.getOutputStream();
+                final CoInputStream in = socket.getInputStream();
+                final CoOutputStream out = socket.getOutputStream();
                 
                 final byte[] b = new byte[512];
                 final int requests = 100;
@@ -175,7 +179,7 @@ public class EchoClient {
                      Thread.currentThread().getName(), id, (System.currentTimeMillis() - ts)));
             } finally {
                 remain.decrementAndGet();
-                IoUtils.close(sock);
+                IoUtils.close(socket);
                 // Shutdown only when all connection completed
                 if(remain.compareAndSet(0, 0)){
                     scheduler.shutdown();
