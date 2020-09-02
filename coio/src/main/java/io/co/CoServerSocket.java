@@ -36,31 +36,22 @@ import io.co.util.ReflectUtils;
 public abstract class CoServerSocket implements CoChannel {
     
     protected static final int BACKLOG_DEFAULT = 150;
-    
+
+    protected final CoScheduler scheduler;
     protected final Class<? extends Coroutine> acceptorClass;
     protected final Coroutine coAcceptor;
     
     protected final Class<? extends Coroutine> connectorClass;
     
-    protected CoScheduler coScheduler;
-    
     protected CoServerSocket(Class<? extends Coroutine> acceptorClass, 
-            Class<? extends Coroutine> connectorClass) {
-        this(acceptorClass, connectorClass, null);
-    }
-    
-    protected CoServerSocket(Class<? extends Coroutine> acceptorClass, 
-            Class<? extends Coroutine> connectorClass, CoScheduler coScheduler) {
-        this.acceptorClass  = acceptorClass;
+            Class<? extends Coroutine> connectorClass, CoScheduler scheduler) {
+
+        if (scheduler == null) throw new NullPointerException();
+
+        this.scheduler = scheduler;
+        this.acceptorClass = acceptorClass;
         this.connectorClass = connectorClass;
-        this.coAcceptor     = ReflectUtils.newObject(acceptorClass);
-        
-        this.coScheduler    = coScheduler;
-    }
-    
-    protected CoServerSocket(int port, Class<? extends Coroutine> acceptorClass, 
-            Class<? extends Coroutine> connectorClass) {
-        this(port, acceptorClass, connectorClass, null);
+        this.coAcceptor = ReflectUtils.newObject(acceptorClass);
     }
     
     protected CoServerSocket(int port, Class<? extends Coroutine> acceptorClass, 
@@ -76,14 +67,16 @@ public abstract class CoServerSocket implements CoChannel {
     
     protected CoServerSocket(int port, int backlog, InetAddress bindAddress,
             Class<? extends Coroutine> acceptorClass, 
-            Class<? extends Coroutine> connectorClass, CoScheduler coScheduler) {
+            Class<? extends Coroutine> connectorClass, CoScheduler scheduler) {
+
+        if (scheduler == null) throw new NullPointerException();
+        this.scheduler = scheduler;
         if(port < 0 || port > 65535) {
             throw new IllegalArgumentException("port " + port);
         }
         
         this.acceptorClass  = acceptorClass;
         this.connectorClass = connectorClass;
-        this.coScheduler    = coScheduler;
         this.coAcceptor     = ReflectUtils.newObject(acceptorClass);
     }
     
@@ -94,11 +87,12 @@ public abstract class CoServerSocket implements CoChannel {
     public Class<? extends Coroutine> getConnectorClass(){
         return this.connectorClass;
     }
-    
-    public CoScheduler getScheduler(){
-        return this.coScheduler;
+
+    @Override
+    public CoScheduler getScheduler() {
+        return this.scheduler;
     }
-    
+
     @Override
     public abstract boolean isOpen();
     
@@ -113,11 +107,11 @@ public abstract class CoServerSocket implements CoChannel {
     
     public Future<Void> bind(SocketAddress endpoint, int backlog) 
             throws CoIOException {
-        return this.coScheduler.bind(this, endpoint, backlog);
+        return getScheduler().bind(this, endpoint, backlog);
     }
     
     public CoSocket accept(Continuation co) {
-        return this.coScheduler.accept(co, this);
+        return getScheduler().accept(co, this);
     }
     
     public abstract InetAddress getInetAddress();
@@ -128,7 +122,7 @@ public abstract class CoServerSocket implements CoChannel {
  
     @Override
     public void close(){
-        this.coScheduler.close(this);
+        getScheduler().close(this);
     }
     
     public static void startAndServe(Class<? extends Coroutine> connectorClass, SocketAddress endpoint)

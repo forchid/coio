@@ -19,14 +19,16 @@ package io.co;
 import java.nio.channels.Channel;
 
 /**
- * A channel based on coroutines.
+ * A channel based on coroutines, represents socket, file channels etc.
  * 
  * @author little-pan
  * @since 2019-05-13
  *
  */
 public interface CoChannel extends Channel {
-    
+
+    CoScheduler getScheduler();
+
     @Override
     boolean isOpen();
     

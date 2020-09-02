@@ -50,21 +50,21 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
     }
     
     public NioCoServerSocket(int port,  Class<? extends Coroutine> connectorClass) {
-        this(port, BACKLOG_DEFAULT, null, DefaultAcceptor.class, connectorClass, null);
+        this(port, BACKLOG_DEFAULT, null, DefaultAcceptor.class, connectorClass, newScheduler(port));
     }
     
     public NioCoServerSocket(int port, int backlog, Class<? extends Coroutine> connectorClass) {
-        this(port, backlog, null, DefaultAcceptor.class, connectorClass, null);
+        this(port, backlog, null, DefaultAcceptor.class, connectorClass, newScheduler(port));
     }
     
     public NioCoServerSocket(int port, int backlog, InetAddress bindAddress,
             Class<? extends Coroutine> connectorClass) {
-        this(port, backlog, bindAddress, DefaultAcceptor.class, connectorClass, null);
+        this(port, backlog, bindAddress, DefaultAcceptor.class, connectorClass, newScheduler(port));
     }
     
     public NioCoServerSocket(Class<? extends Coroutine> acceptorClass, 
             Class<? extends Coroutine> connectorClass) {
-        this(acceptorClass, connectorClass, null);
+        this(acceptorClass, connectorClass, newScheduler(-1));
     }
     
     public NioCoServerSocket(Class<? extends Coroutine> acceptorClass, 
@@ -75,7 +75,7 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
     
     public NioCoServerSocket(int port,
             Class<? extends Coroutine> acceptorClass,  Class<? extends Coroutine> connectorClass) {
-        this(port, acceptorClass, connectorClass, null);
+        this(port, acceptorClass, connectorClass, newScheduler(port));
     }
     
     public NioCoServerSocket(int port,
@@ -115,33 +115,7 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
             }
         }
         
-        // 2. initialize scheduler
-        boolean newScheduler = false;
-        if(this.coScheduler == null) {
-            newScheduler = true;
-            NioCoScheduler scheduler = null;
-            try {
-                failed = true;
-                final String sname;
-                if(port > 0) {
-                    sname = "nio-" + port;
-                }else {
-                    sname = "nio-server";
-                }
-                this.coScheduler = scheduler = new NioCoScheduler(sname);
-                scheduler.start();
-                failed = false;
-            } finally {
-                if(failed) {
-                    IoUtils.close(ssChan);
-                    if(scheduler != null) {
-                        scheduler.shutdown();
-                    }
-                }
-            }
-        }
-        
-        // 3. Try to bind
+        // 2. Try to bind
         if(port != -1) {
             try {
                 failed = true;
@@ -160,11 +134,8 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
                     throw new IllegalStateException("Bind failed", cause);
                 }
             } finally {
-                if(failed) {
+                if (failed) {
                     IoUtils.close(ssChan);
-                    if(newScheduler) {
-                        this.coScheduler.shutdown();
-                    }
                 }
             }
         }
@@ -226,6 +197,26 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
             return this.channel.getLocalAddress();
         } catch (final IOException e) {
             throw new CoIOException(e);
+        }
+    }
+
+    public static NioCoScheduler newScheduler(int port) {
+        NioCoScheduler scheduler = null;
+        boolean failed = true;
+        try {
+            final String name;
+            if (port > 0) {
+                name = "nio-" + port;
+            } else {
+                name = "nio-server";
+            }
+            scheduler = new NioCoScheduler(name);
+            scheduler.start();
+            failed = false;
+
+            return scheduler;
+        } finally {
+            if(failed && scheduler != null) scheduler.shutdown();
         }
     }
     

@@ -137,7 +137,7 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
 
     @Override
     public void connect(SocketAddress endpoint, int timeout) throws IOException {
-        this.coScheduler.connect(this, endpoint, timeout);
+        getScheduler().connect(this, endpoint, timeout);
     }
 
     @Override

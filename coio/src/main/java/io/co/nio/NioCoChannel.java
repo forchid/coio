@@ -29,13 +29,13 @@ import io.co.CoChannel;
  *
  */
 interface NioCoChannel<S extends Channel> extends CoChannel {
-    
+
     int id();
-    
+
     NioCoChannel<S> id(int id);
 
     S channel();
-    
+
     CoroutineRunner coRunner();
-    
+
 }

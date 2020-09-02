@@ -47,21 +47,21 @@ public interface CoScheduler {
     
     boolean isStarted();
     
-    CoSocket accept(Continuation co, CoServerSocket coServerSocket)
+    CoSocket accept(Continuation co, CoServerSocket serverSocket)
         throws CoIOException;
     
-    Future<Void> bind(CoServerSocket coServerSocket, SocketAddress endpoint, int backlog)
+    Future<Void> bind(CoServerSocket serverSocket, SocketAddress endpoint, int backlog)
         throws CoIOException;
     
-    void connect(CoSocket coSocket, SocketAddress remote)
+    void connect(CoSocket socket, SocketAddress remote)
         throws IOException;
     
-    void connect(CoSocket coSocket, SocketAddress remote, int timeout)
+    void connect(CoSocket socket, SocketAddress remote, int timeout)
         throws IOException;
     
-    void schedule(CoSocket coSocket, Runnable task, long delay);
+    void schedule(CoSocket socket, Runnable task, long delay);
     
-    void schedule(CoSocket coSocket, Runnable task, long delay, long period);
+    void schedule(CoSocket socket, Runnable task, long delay, long period);
     
     Future<Void> execute(Runnable task) throws CoIOException;
     
@@ -71,7 +71,7 @@ public interface CoScheduler {
     
     boolean inScheduler();
     
-    void close(CoChannel coChannel);
+    void close(CoChannel socket);
     
     boolean isTerminated();
     

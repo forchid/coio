@@ -33,22 +33,18 @@ import io.co.nio.NioCoSocket;
 public abstract class CoSocket implements CoChannel {
     
     protected static final int SO_TIMEOUT = Integer.getInteger("io.co.soTimeout", 0);
-    
+
+    protected final CoScheduler scheduler;
     protected final Coroutine coConnector;
-    protected final CoScheduler coScheduler;
     private int soTimeout = SO_TIMEOUT;
     
-    protected CoSocket(Coroutine coConnector, CoScheduler coScheduler) {
+    protected CoSocket(Coroutine coConnector, CoScheduler scheduler) {
+        this.scheduler = scheduler;
         this.coConnector = coConnector;
-        this.coScheduler = coScheduler;
     }
     
     public Coroutine getConnector(){
         return this.coConnector;
-    }
-    
-    public CoScheduler getScheduler(){
-        return this.coScheduler;
     }
     
     public int getSoTimeout(){
@@ -71,10 +67,15 @@ public abstract class CoSocket implements CoChannel {
     public abstract CoOutputStream getOutputStream();
     
     public abstract boolean isConnected();
+
+    @Override
+    public CoScheduler getScheduler() {
+        return this.scheduler;
+    }
     
     @Override
     public void close() {
-        this.coScheduler.close(this);
+        this.scheduler.close(this);
     }
     
     public static void startAndServe(Coroutine coConnector, SocketAddress remote)
