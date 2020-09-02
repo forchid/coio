@@ -127,19 +127,19 @@ public class EchoClient {
                 final int requests = 100;
                 for(int i = 0; i < requests; ++i) {
                     out.write(co, b);
-                    final int wbytes = b.length;
+                    final int written = b.length;
                     out.flush(co);
                     
-                    int rbytes = 0;
-                    while (rbytes < wbytes) {
-                        final int n = in.read(co, b, rbytes, b.length - rbytes);
+                    int reads = 0;
+                    while (reads < written) {
+                        final int n = in.read(co, b, reads, b.length - reads);
                         if(n == -1) {
                             throw new EOFException();
                         }
-                        rbytes += n;
+                        reads += n;
                     }
 
-                    //System.out.println(String.format("wbytes %d, rbytes %d ", wbytes, rbytes));
+                    //System.out.println(String.format("written %d, reads %d ", written, reads));
                 }
                 success.incrementAndGet();
                 System.out.println(String.format("[%s]Client-%05d: time %dms", 
@@ -155,4 +155,5 @@ public class EchoClient {
         }
         
     }
+
 }

@@ -78,7 +78,6 @@ public class EchoServer {
                         }
                         i += n;
                     }
-                    //System.out.println("Server: rbytes "+i);
                     out.write(co, b, 0, i);
                     out.flush(co);
                     debug("flush: bytes %s", i);
@@ -93,4 +92,5 @@ public class EchoServer {
         }
         
     }
+
 }
