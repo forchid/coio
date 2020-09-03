@@ -53,7 +53,7 @@ public class EchoClient {
         }else{
             conns = 250;
         }
-        threads = conns;
+        threads = Math.min(250, conns);
         
         final ExecutorService executors = Executors.newFixedThreadPool(threads);
         final AtomicInteger success = new AtomicInteger();

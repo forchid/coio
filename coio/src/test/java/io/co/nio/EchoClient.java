@@ -52,7 +52,7 @@ public class EchoClient {
         }else{
             connectionCount = 250;
         }
-        schedulerCount = Math.min(2, connectionCount);
+        schedulerCount = Math.min(4, connectionCount);
         
         final long ts = System.currentTimeMillis();
         final SocketAddress remote = new InetSocketAddress(host, PORT);

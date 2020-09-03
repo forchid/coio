@@ -51,7 +51,7 @@ public class EchoClient {
         final String host = System.getProperty("io.co.host", "localhost");
         final SocketAddress remote = new InetSocketAddress(host, 9999);
         
-        final int conns, threads = 2;
+        final int conns, threads = 4;
         if(args.length > 0){
             conns = Integer.parseInt(args[0]);
         }else{

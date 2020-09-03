@@ -47,7 +47,7 @@ public class EchoServer {
         final String host = System.getProperty("io.co.host", "localhost");
         SocketAddress endpoint = new InetSocketAddress(host, 9999);
         
-        final int threads = 2;
+        final int threads = 4;
         final ServerBootstrap boot = new ServerBootstrap();
         final EventLoopGroup group = new NioEventLoopGroup(1);
         final EventLoopGroup child = new NioEventLoopGroup(threads);
