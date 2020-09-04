@@ -43,9 +43,11 @@ import io.co.util.ReflectUtils;
  *
  */
 public class NioCoScheduler implements CoScheduler {
+
     static final int ioRatio = initIoRatio();
     
-    final String name;
+    protected final String name;
+    protected final boolean daemon;
 
     private final Object startSync = new Object();
     private volatile boolean started, shutdown;
@@ -68,25 +70,49 @@ public class NioCoScheduler implements CoScheduler {
     private int nextChildSlot;
     final BlockingQueue<Runnable> syncQueue;
     
-    public NioCoScheduler(){
+    public NioCoScheduler() {
         this(NAME, INIT_CONNECTIONS);
     }
     
-    public NioCoScheduler(String name){
+    public NioCoScheduler(String name) {
         this(name, INIT_CONNECTIONS);
+    }
+
+    public NioCoScheduler(boolean daemon) {
+        this(NAME, daemon, INIT_CONNECTIONS);
+    }
+
+    public NioCoScheduler(int initConnections) {
+        this(NAME, initConnections);
+    }
+
+    public NioCoScheduler(String name, boolean daemon){
+        this(name, daemon, INIT_CONNECTIONS);
     }
     
     public NioCoScheduler(String name, int initConnections) {
         this(name, initConnections, MAX_CONNECTIONS, CHILDREN_COUNT);
     }
-    
-    public NioCoScheduler(String name, int initConnections, int childrenCount){
-        this(name, initConnections, MAX_CONNECTIONS, childrenCount);
+
+    public NioCoScheduler(String name, boolean daemon, int initConnections) {
+        this(name, daemon, initConnections, MAX_CONNECTIONS, CHILDREN_COUNT);
     }
     
-    public NioCoScheduler(String name, int initConnections, int maxConnections, int childrenCount){
-        debug("%s - NioCoScheduler(): initConnections = %s, maxConnections = %s, childrenCount = %s",
-                name, initConnections, maxConnections, childrenCount);
+    public NioCoScheduler(String name, int initConnections, int childrenCount) {
+        this(name, initConnections, MAX_CONNECTIONS, childrenCount);
+    }
+
+    public NioCoScheduler(String name, boolean daemon, int initConnections, int childrenCount) {
+        this(name, daemon, initConnections, MAX_CONNECTIONS, childrenCount);
+    }
+
+    public NioCoScheduler(String name, int initConnections, int maxConnections, int childrenCount) {
+        this(name, DAEMON, initConnections, maxConnections, childrenCount);
+    }
+    
+    public NioCoScheduler(String name, boolean daemon, int initConnections, int maxConnections, int childrenCount) {
+        debug("%s - NioCoScheduler(): daemon = %s, initConnections = %s, maxConnections = %s, childrenCount = %s",
+                name, daemon, initConnections, maxConnections, childrenCount);
         if(initConnections < 0){
             throw new IllegalArgumentException("initConnections " + initConnections);
         }
@@ -102,6 +128,7 @@ public class NioCoScheduler implements CoScheduler {
         }
         
         this.name = name;
+        this.daemon = daemon;
         this.channels = new NioCoChannel<?>[initConnections];
         this.maxConnections = maxConnections;
         
@@ -121,6 +148,11 @@ public class NioCoScheduler implements CoScheduler {
     public String getName() {
         return this.name;
     }
+
+    @Override
+    public boolean isDaemon() {
+        return this.daemon;
+    }
     
     @Override
     public void start() {
@@ -130,6 +162,7 @@ public class NioCoScheduler implements CoScheduler {
             }
             
             this.schedulerThread = new Thread(this::startAndServe, this.name);
+            this.schedulerThread.setDaemon(this.daemon);
             this.schedulerThread.start();
         }
     }
@@ -137,7 +170,7 @@ public class NioCoScheduler implements CoScheduler {
     @Override
     public void startAndServe() {
         final String name = this.name;
-        
+
         synchronized(this.startSync) {
             if(this.schedulerThread != null) {
                 if(!inScheduler() || inScheduler() && isStarted()) {
@@ -149,15 +182,16 @@ public class NioCoScheduler implements CoScheduler {
         }
         this.schedulerThread.setName(name);
         
-        final NioCoScheduler[] children = this.children;
-        final int minCon = this.channels.length;
-        for(int i = 0; i < children.length; ++i){
+        NioCoScheduler[] children = this.children;
+        int childCount = children.length;
+        int minCon = this.channels.length;
+        for (int i = 0; i < childCount; ++i) {
             // Child threads
-            final NioCoScheduler child;
-            final String cname = String.format("%s-child-%s", name, i);
-            child = new NioCoScheduler(cname, minCon, this.maxConnections, 0);
+            NioCoScheduler child;
+            String childName = String.format("%s-child-%s", name, i);
+            child = new NioCoScheduler(childName, this.daemon, minCon, this.maxConnections, 0);
             children[i] = child;
-            new Thread(child::startAndServe).start();
+            child.start();
         }
         
         serve();

@@ -38,8 +38,11 @@ public interface CoScheduler {
     int MAX_CONNECTIONS  = Integer.getInteger("io.co.maxConnections",  102400);
     int CHILDREN_COUNT   = Integer.getInteger("io.co.scheduler.childrenCount", processors());
     String NAME          = System.getProperty("io.co.scheduler.name", "co-scheduler");
+    boolean DAEMON       = Boolean.getBoolean("io.co.scheduler.daemon");
     
     String getName();
+
+    boolean isDaemon();
     
     void start();
     
