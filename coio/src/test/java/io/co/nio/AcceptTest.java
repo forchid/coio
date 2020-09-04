@@ -33,8 +33,7 @@ import java.net.InetSocketAddress;
 public class AcceptTest extends TestCase {
 
     public static void main(String[] args) throws Exception {
-        AcceptTest test = new AcceptTest();
-        test.testAccept();
+        new AcceptTest().testAccept();
     }
 
     public void testAccept() throws Exception {

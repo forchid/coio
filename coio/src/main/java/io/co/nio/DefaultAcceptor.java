@@ -34,7 +34,7 @@ public class DefaultAcceptor implements ServerSocketHandler {
 
     private static final long serialVersionUID = 1608438566384500434L;
     
-    public DefaultAcceptor(){
+    public DefaultAcceptor() {
         
     }
     
