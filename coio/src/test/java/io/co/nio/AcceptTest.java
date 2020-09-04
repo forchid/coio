@@ -20,6 +20,7 @@ import com.offbynull.coroutines.user.Continuation;
 
 import io.co.*;
 import io.co.util.IoUtils;
+import static io.co.util.LogUtils.*;
 import junit.framework.TestCase;
 
 import java.io.IOException;
@@ -45,12 +46,12 @@ public class AcceptTest extends TestCase {
         final CoSocket socket = new NioCoSocket(new ClientHandler(), scheduler);
         socket.connect(new InetSocketAddress(port));
         
-        System.out.println("wait");
+        info("wait");
         scheduler.awaitTermination();
         socket.close();
         server.close();
-        
-        System.out.println("OK");
+
+        info("OK");
     }
 
     static class ClientHandler implements SocketHandler {
@@ -61,8 +62,7 @@ public class AcceptTest extends TestCase {
         public void handle(Continuation co, CoSocket socket) throws Exception {
             CoScheduler scheduler = socket.getScheduler();
             try {
-                String threadName = Thread.currentThread().getName();
-                System.out.println(threadName + ": connected");
+                info("Connected");
                 CoOutputStream out = socket.getOutputStream();
                 out.write(co, 1);
                 out.flush(co);
@@ -83,8 +83,7 @@ public class AcceptTest extends TestCase {
         @Override
         public void handle(Continuation co, CoSocket socket) throws Exception {
             try {
-                String threadName = Thread.currentThread().getName();
-                System.out.println(threadName + ": accepted");
+                info("Accepted");
                 int i = socket.getInputStream().read(co);
                 if (i != 1) throw new IOException("Request error");
                 CoOutputStream out = socket.getOutputStream();

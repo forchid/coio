@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.offbynull.coroutines.user.Continuation;
 
-import static io.co.nio.NioCoScheduler.*;
+import static io.co.util.LogUtils.*;
 
 /**
  * A simple CoSocket demo.
@@ -84,8 +84,8 @@ public class EchoClient {
             }
         }
         
-        System.out.println(String.format("Bye: connectionCount = %s, successCount = %s, time = %sms",
-                connectionCount, successCount, System.currentTimeMillis() - ts));
+        info("Bye: connectionCount = %s, successCount = %s, time = %sms",
+                connectionCount, successCount, System.currentTimeMillis() - ts);
     }
     
     static class Connector implements SocketHandler {
@@ -126,12 +126,9 @@ public class EchoClient {
                         }
                         reads += n;
                     }
-
-                    //System.out.println(String.format("written %d, reads %d ", written, reads));
                 }
                 success.incrementAndGet();
-                System.out.println(String.format("[%s] Client-%05d: time %dms",
-                     Thread.currentThread().getName(), id, (System.currentTimeMillis() - ts)));
+                info("Client-%05d: time %dms", id, (System.currentTimeMillis() - ts));
             } finally {
                 remain.decrementAndGet();
                 IoUtils.close(socket);

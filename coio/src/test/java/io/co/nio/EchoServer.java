@@ -17,12 +17,9 @@
 package io.co.nio;
 
 import io.co.*;
-
+import static io.co.util.LogUtils.*;
 import com.offbynull.coroutines.user.Continuation;
-
 import java.util.concurrent.CountDownLatch;
-
-import static io.co.nio.NioCoScheduler.*;
 
 /**
  * A simple CoServerSocket demo.
@@ -48,7 +45,7 @@ public class EchoServer {
             // Ignore
         } finally {
             server.getScheduler().shutdown();
-            System.out.println("Bye");
+            info("Bye");
         }
     }
 
@@ -66,8 +63,6 @@ public class EchoServer {
 
         @Override
         public void handle(Continuation co, CoSocket socket) {
-            //System.out.println("Connected: " + socket);
-            
             final CoInputStream in = socket.getInputStream();
             final CoOutputStream out = socket.getOutputStream();
             CoScheduler scheduler = socket.getScheduler();
@@ -80,7 +75,6 @@ public class EchoServer {
                         final int n = in.read(co, b, i, b.length - i);
                         debug("read: bytes %s", n);
                         if(n == -1) {
-                            //System.out.println("Server: EOF");
                             return;
                         }
                         i += n;
@@ -94,7 +88,6 @@ public class EchoServer {
                 }
             } finally {
                 socket.close();
-                //scheduler.shutdown();
             }
         }
         

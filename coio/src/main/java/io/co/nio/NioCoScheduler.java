@@ -19,7 +19,6 @@ package io.co.nio;
 import java.io.*;
 import java.net.SocketAddress;
 import java.nio.channels.*;
-import java.text.*;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Future;
@@ -34,6 +33,7 @@ import com.offbynull.coroutines.user.CoroutineRunner;
 import io.co.*;
 import io.co.util.IoUtils;
 import io.co.util.ReflectUtils;
+import static io.co.util.LogUtils.*;
 
 /**
  * The coroutine scheduler based on NIO.
@@ -207,15 +207,6 @@ public class NioCoScheduler implements CoScheduler {
     public boolean awaitTermination(long millis) throws InterruptedException {
         this.schedulerThread.join(millis);
         return isTerminated();
-    }
-    
-    @Override
-    public CoSocket accept(Continuation co, CoServerSocket serverSocket) {
-        debug("accept() ->");
-        co.suspend();
-        final CoSocket socket = (CoSocket)co.getContext();
-        debug("accept() <-");
-        return socket;
     }
     
     @Override
@@ -636,33 +627,6 @@ public class NioCoScheduler implements CoScheduler {
                 final Throwable cause = e.getCause();
                 debug("Uncaught exception in coroutine", cause);
             }
-        }
-    }
-
-    protected static void debug(final String message, final Throwable cause){
-        if(DEBUG){
-            if(cause != null){
-                debug(System.err, message);
-                cause.printStackTrace(System.err);
-            }else{
-                debug(System.err, message);
-            }
-        }
-    }
-    
-    protected static void debug(final String format, Object ...args){
-        debug(System.out, format, args);
-    }
-    
-    protected static void debug(final PrintStream out, String format, Object ...args){
-        if(DEBUG){
-            final DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
-            String message = format;
-            if(args.length > 0){
-                message = String.format(format, args);
-            }
-            final String thread = Thread.currentThread().getName();
-            out.println(String.format("%s[%s] %s", df.format(new Date()), thread, message));
         }
     }
     

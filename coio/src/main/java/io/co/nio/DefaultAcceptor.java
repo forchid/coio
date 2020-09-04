@@ -22,6 +22,7 @@ import java.nio.channels.ServerSocketChannel;
 import io.co.*;
 
 import com.offbynull.coroutines.user.Continuation;
+import io.co.util.LogUtils;
 
 /**
  * The default accept coroutine.
@@ -43,7 +44,7 @@ public class DefaultAcceptor implements ServerSocketHandler {
         NioCoServerSocket nioServerSocket = (NioCoServerSocket)serverSocket;
         ServerSocketChannel chan = nioServerSocket.channel();
         SocketAddress sa = chan.getLocalAddress();
-        NioCoScheduler.debug("Server listen on %s", sa);
+        LogUtils.info("Server listen on %s", sa);
 
         CoScheduler scheduler = serverSocket.getScheduler();
         while (!scheduler.isShutdown()) {

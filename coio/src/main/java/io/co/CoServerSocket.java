@@ -22,6 +22,8 @@ import java.util.concurrent.Future;
 
 import com.offbynull.coroutines.user.Continuation;
 
+import static io.co.util.LogUtils.*;
+
 /**
  * The server socket based on coroutines.
  * 
@@ -40,22 +42,10 @@ public abstract class CoServerSocket implements CoChannel {
     
     protected CoServerSocket(Class<? extends SocketHandler> connectorClass,
                              CoScheduler scheduler, ServerSocketHandler acceptor) {
-        this(PORT_UNDEFINED, BACKLOG_DEFAULT, null, connectorClass, scheduler, acceptor);
+        this(PORT_UNDEFINED, connectorClass, scheduler, acceptor);
     }
     
     protected CoServerSocket(int port, Class<? extends SocketHandler> connectorClass,
-                             CoScheduler coScheduler, ServerSocketHandler acceptor) {
-        this(port, BACKLOG_DEFAULT, null, connectorClass, coScheduler, acceptor);
-    }
-    
-    protected CoServerSocket(int port, int backlog,
-                             Class<? extends SocketHandler> connectorClass,
-                             CoScheduler coScheduler, ServerSocketHandler acceptor) {
-        this(port, backlog, null, connectorClass, coScheduler, acceptor);
-    }
-    
-    protected CoServerSocket(int port, int backlog, InetAddress bindAddress,
-                             Class<? extends SocketHandler> connectorClass,
                              CoScheduler scheduler, ServerSocketHandler acceptor) {
 
         if (scheduler == null) throw new NullPointerException();
@@ -93,9 +83,20 @@ public abstract class CoServerSocket implements CoChannel {
         return scheduler.bind(this, endpoint, backlog);
     }
     
-    public CoSocket accept(Continuation co) {
+    public CoSocket accept(Continuation co) throws IllegalStateException {
+        if (co.getContext() != this) {
+            throw new IllegalStateException("The continuation context not this server socket");
+        }
         CoScheduler scheduler = getScheduler();
-        return scheduler.accept(co, this);
+        scheduler.ensureInScheduler();
+
+        debug("accept() ->");
+        co.suspend();
+        CoSocket socket = (CoSocket)co.getContext();
+        co.setContext(this);
+        debug("accept() <-");
+
+        return socket;
     }
     
     public abstract InetAddress getInetAddress();

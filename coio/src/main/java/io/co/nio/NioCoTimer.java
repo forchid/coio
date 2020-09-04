@@ -17,7 +17,7 @@
 package io.co.nio;
 
 import io.co.CoSocket;
-import static io.co.nio.NioCoScheduler.*;
+import static io.co.util.LogUtils.*;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;

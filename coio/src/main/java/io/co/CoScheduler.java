@@ -32,8 +32,6 @@ import static io.co.util.RuntimeUtils.*;
  */
 public interface CoScheduler {
     
-    boolean DEBUG = Boolean.getBoolean("io.co.debug");
-    
     int INIT_CONNECTIONS = Integer.getInteger("io.co.initConnections", 1024);
     int MAX_CONNECTIONS  = Integer.getInteger("io.co.maxConnections",  102400);
     int CHILDREN_COUNT   = Integer.getInteger("io.co.scheduler.childrenCount", processors());
@@ -49,9 +47,6 @@ public interface CoScheduler {
     void startAndServe();
     
     boolean isStarted();
-    
-    CoSocket accept(Continuation co, CoServerSocket serverSocket)
-        throws CoIOException;
     
     Future<Void> bind(CoServerSocket serverSocket, SocketAddress endpoint, int backlog)
         throws CoIOException;
@@ -73,6 +68,12 @@ public interface CoScheduler {
     void await(Continuation co, long millis);
     
     boolean inScheduler();
+
+    default void ensureInScheduler() throws IllegalStateException {
+        if (!inScheduler()) {
+            throw new IllegalStateException("The current thread not this scheduler");
+        }
+    }
     
     void close(CoChannel socket);
     
@@ -85,5 +86,5 @@ public interface CoScheduler {
     boolean awaitTermination(long millis) throws InterruptedException;
     
     void shutdown();
-    
+
 }

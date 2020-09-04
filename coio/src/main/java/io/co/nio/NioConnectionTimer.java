@@ -17,7 +17,7 @@
 package io.co.nio;
 
 import io.co.util.IoUtils;
-import static io.co.nio.NioCoScheduler.*;
+import static io.co.util.LogUtils.*;
 
 import java.net.SocketTimeoutException;
 

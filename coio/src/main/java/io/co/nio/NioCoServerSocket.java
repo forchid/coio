@@ -103,7 +103,7 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
                              Class<? extends SocketHandler> connectorClass,
                              NioCoScheduler coScheduler, ServerSocketHandler acceptor,
                              boolean autoShutdownScheduler) {
-        super(port, backlog, bindAddress, connectorClass, coScheduler, acceptor);
+        super(port, connectorClass, coScheduler, acceptor);
         this.autoShutdownScheduler = autoShutdownScheduler;
         initialize(port, backlog, bindAddress);
     }

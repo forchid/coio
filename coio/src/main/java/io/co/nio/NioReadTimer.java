@@ -16,7 +16,7 @@
  */
 package io.co.nio;
 
-import static io.co.nio.NioCoScheduler.*;
+import static io.co.util.LogUtils.*;
 
 /**
  * @author little-pan
