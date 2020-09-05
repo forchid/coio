@@ -39,7 +39,7 @@ public class EchoServer {
         CoServerSocket server = new NioCoServerSocket(PORT, Connector.class);
         startLatch.countDown();
         try {
-            server.getScheduler().awaitTermination();
+            server.awaitClosed();
             server.close();
         } catch (InterruptedException e) {
             // Ignore

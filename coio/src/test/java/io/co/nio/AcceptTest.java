@@ -40,16 +40,15 @@ public class AcceptTest extends TestCase {
     public void testAccept() throws Exception {
         System.setProperty("io.co.debug", "true");
         int port = 9960;
-        final NioCoServerSocket server = new NioCoServerSocket(port, ServerHandler.class);
-        final NioCoScheduler scheduler = server.getScheduler();
-        
-        final CoSocket socket = new NioCoSocket(new ClientHandler(), scheduler);
+        NioCoServerSocket server = new NioCoServerSocket(port, ServerHandler.class);
+        NioCoScheduler scheduler = server.getScheduler();
+
+        CoSocket socket = new NioCoSocket(new ClientHandler(), scheduler);
         socket.connect(new InetSocketAddress(port));
         
         info("wait");
-        scheduler.awaitTermination();
+        server.awaitClosed();
         socket.close();
-        server.close();
 
         info("OK");
     }
@@ -62,7 +61,7 @@ public class AcceptTest extends TestCase {
         public void handle(Continuation co, CoSocket socket) throws Exception {
             CoScheduler scheduler = socket.getScheduler();
             try {
-                info("Connected");
+                info("%s connected", socket);
                 CoOutputStream out = socket.getOutputStream();
                 out.write(co, 1);
                 out.flush(co);
@@ -83,7 +82,7 @@ public class AcceptTest extends TestCase {
         @Override
         public void handle(Continuation co, CoSocket socket) throws Exception {
             try {
-                info("Accepted");
+                info("%s accepted", socket);
                 int i = socket.getInputStream().read(co);
                 if (i != 1) throw new IOException("Request error");
                 CoOutputStream out = socket.getOutputStream();

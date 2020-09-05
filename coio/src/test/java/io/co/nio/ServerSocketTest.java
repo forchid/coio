@@ -18,14 +18,15 @@
 package io.co.nio;
 
 import com.offbynull.coroutines.user.Continuation;
+import com.offbynull.coroutines.user.Coroutine;
+import com.offbynull.coroutines.user.CoroutineRunner;
 import io.co.*;
 import io.co.util.IoUtils;
 import io.co.util.RuntimeUtils;
 import junit.framework.TestCase;
 
 import java.net.InetSocketAddress;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
+import java.net.SocketAddress;
 
 public class ServerSocketTest extends TestCase {
 
@@ -38,8 +39,9 @@ public class ServerSocketTest extends TestCase {
     }
 
     public void testBind() throws Exception {
-        CoServerSocket serverSocket = null;
-        CoScheduler scheduler;
+        NioCoServerSocket serverSocket = null;
+        NioCoScheduler scheduler;
+        InetSocketAddress sa;
         int port;
 
         boolean linux = RuntimeUtils.isLinux();
@@ -47,45 +49,71 @@ public class ServerSocketTest extends TestCase {
             if (linux) {
                 try {
                     port = 999;
-                    serverSocket = new NioCoServerSocket(port, DummySocketHandler.class);
+                    serverSocket = new NioCoServerSocket(port, ShutdownSocketHandler.class);
+                    serverSocket.awaitClosed();
                     fail("Bind should be failed for permission issue");
-                } catch (CoIOException e) {
+                } catch (IllegalStateException e) {
                     // ok
                 }
             }
 
             port = 19999;
-            serverSocket = new NioCoServerSocket(port, DummySocketHandler.class);
+            serverSocket = new NioCoServerSocket(port, ShutdownSocketHandler.class);
             scheduler = serverSocket.getScheduler();
             assertFalse(scheduler.isShutdown());
-            serverSocket.close();
+            sa = new InetSocketAddress(port);
+            new NioCoSocket(new ShutdownSocketHandler(), scheduler).connect(sa);
+            serverSocket.awaitClosed();
             assertTrue(scheduler.isShutdown());
 
-            serverSocket = new NioCoServerSocket(DummySocketHandler.class);
+            serverSocket = new NioCoServerSocket(ShutdownSocketHandler.class);
             scheduler = serverSocket.getScheduler();
             assertFalse(scheduler.isShutdown());
             if (linux) {
                 try {
                     port = 999;
-                    Future<?> bf = serverSocket.bind(new InetSocketAddress(port));
-                    bf.get();
+                    SocketAddress a = new InetSocketAddress(port);
+                    CoServerSocket ss = serverSocket;
+                    scheduler.execute(() -> {
+                        Coroutine c = new Coroutine() {
+                            @Override
+                            public void run(Continuation co) throws Exception {
+                                ss.bind(co, a);
+                            }
+                        };
+                        CoroutineRunner runner = new CoroutineRunner(c);
+                        runner.setContext(ss);
+                        runner.execute();
+                    });
+
+                    serverSocket.awaitClosed();
                     fail("Bind should be failed for permission issue");
-                } catch (ExecutionException e) {
-                    Throwable cause = e.getCause();
-                    if (!(cause instanceof CoIOException)) throw new AssertionError(cause);
+                } catch (IllegalStateException e) {
                     // ok
                 }
             }
             serverSocket.close();
             assertTrue(scheduler.isShutdown());
 
-            serverSocket = new NioCoServerSocket(DummySocketHandler.class);
+            serverSocket = new NioCoServerSocket(ShutdownSocketHandler.class);
             scheduler = serverSocket.getScheduler();
             assertFalse(scheduler.isShutdown());
             port = 19999;
-            Future<?> bf = serverSocket.bind(new InetSocketAddress(port));
-            bf.get();
-            serverSocket.close();
+            final SocketAddress a = new InetSocketAddress(port);
+            CoServerSocket ss = serverSocket;
+            scheduler.execute(() -> {
+                Coroutine c = new Coroutine() {
+                    @Override
+                    public void run(Continuation co) throws Exception {
+                        ss.bind(co, a);
+                    }
+                };
+                CoroutineRunner runner = new CoroutineRunner(c);
+                runner.setContext(ss);
+                runner.execute();
+            });
+            new NioCoSocket(new ShutdownSocketHandler(), scheduler).connect(a);
+            serverSocket.awaitClosed();
             assertTrue(scheduler.isShutdown());
 
         } finally {
@@ -93,11 +121,13 @@ public class ServerSocketTest extends TestCase {
         }
     }
 
-    static class DummySocketHandler implements SocketHandler {
+    static class ShutdownSocketHandler implements SocketHandler {
 
         @Override
         public void handle(Continuation co, CoSocket socket) throws Exception {
+            CoScheduler scheduler = socket.getScheduler();
             socket.close();
+            scheduler.shutdown();
         }
 
     }

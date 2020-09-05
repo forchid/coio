@@ -14,15 +14,15 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library.
  */
-package io.co.nio;
+package io.co;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.nio.channels.ServerSocketChannel;
-
-import io.co.*;
 
 import com.offbynull.coroutines.user.Continuation;
-import io.co.util.LogUtils;
+import static io.co.CoServerSocket.*;
+import static io.co.util.LogUtils.*;
 
 /**
  * The default accept coroutine.
@@ -31,25 +31,36 @@ import io.co.util.LogUtils;
  * @since 2019-05-14
  *
  */
-public class DefaultAcceptor implements ServerSocketHandler {
+public class Acceptor implements ServerSocketHandler {
 
-    private static final long serialVersionUID = 1608438566384500434L;
+    private static final long serialVersionUID = 1L;
     
-    public DefaultAcceptor() {
+    public Acceptor() {
         
     }
     
     @Override
     public void handle(Continuation co, CoServerSocket serverSocket) throws Exception {
-        NioCoServerSocket nioServerSocket = (NioCoServerSocket)serverSocket;
-        ServerSocketChannel chan = nioServerSocket.channel();
-        SocketAddress sa = chan.getLocalAddress();
-        LogUtils.info("Server listen on %s", sa);
+        int port = serverSocket.getPort();
+        if (PORT_UNDEFINED == port) {
+            info("%s wait for bind() call", serverSocket);
+            co.suspend();
+        } else {
+            InetAddress address = serverSocket.getBindAddress();
+            SocketAddress bindAddress = new InetSocketAddress(address, port);
+            serverSocket.bind(co, bindAddress, serverSocket.getBacklog());
+        }
+        SocketAddress sa = serverSocket.getLocalAddress();
+        info("%s listen on %s", serverSocket, sa);
 
         CoScheduler scheduler = serverSocket.getScheduler();
         while (!scheduler.isShutdown()) {
-            serverSocket.accept(co);
+            accept(co, serverSocket);
         }
+    }
+
+    protected void accept(Continuation co, CoServerSocket serverSocket) {
+        serverSocket.accept(co);
     }
 
 }

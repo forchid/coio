@@ -18,7 +18,8 @@ package io.co;
 
 import java.net.InetAddress;
 import java.net.SocketAddress;
-import java.util.concurrent.Future;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import com.offbynull.coroutines.user.Continuation;
 
@@ -36,16 +37,41 @@ public abstract class CoServerSocket implements CoChannel {
     protected static final int BACKLOG_DEFAULT = 150;
     protected static final int PORT_UNDEFINED  = -1;
 
+    protected final CountDownLatch closeLatch;
+    protected int port;
+    protected InetAddress bindAddress;
+    protected final int backlog;
+    protected volatile boolean bound;
+    protected volatile Throwable cause;
+
     protected final CoScheduler scheduler;
     protected final ServerSocketHandler acceptor;
     protected final Class<? extends SocketHandler> connectorClass;
     
     protected CoServerSocket(Class<? extends SocketHandler> connectorClass,
                              CoScheduler scheduler, ServerSocketHandler acceptor) {
-        this(PORT_UNDEFINED, connectorClass, scheduler, acceptor);
+        this(PORT_UNDEFINED, null, BACKLOG_DEFAULT, connectorClass, scheduler, acceptor);
+    }
+
+    protected CoServerSocket(int port, Class<? extends SocketHandler> connectorClass,
+                             CoScheduler scheduler, ServerSocketHandler acceptor) {
+        this(port, null, BACKLOG_DEFAULT, connectorClass, scheduler, acceptor);
+    }
+
+    protected CoServerSocket(int port, InetAddress bindAddress,
+                             Class<? extends SocketHandler> connectorClass,
+                             CoScheduler scheduler, ServerSocketHandler acceptor) {
+        this(port, bindAddress, BACKLOG_DEFAULT, connectorClass, scheduler, acceptor);
+    }
+
+    protected CoServerSocket(int port, int backlog,
+                             Class<? extends SocketHandler> connectorClass,
+                             CoScheduler scheduler, ServerSocketHandler acceptor) {
+        this(port, null, backlog, connectorClass, scheduler, acceptor);
     }
     
-    protected CoServerSocket(int port, Class<? extends SocketHandler> connectorClass,
+    protected CoServerSocket(int port, InetAddress bindAddress, int backlog,
+                             Class<? extends SocketHandler> connectorClass,
                              CoScheduler scheduler, ServerSocketHandler acceptor) {
 
         if (scheduler == null) throw new NullPointerException();
@@ -54,9 +80,49 @@ public abstract class CoServerSocket implements CoChannel {
             throw new IllegalArgumentException("port " + port);
         }
 
+        this.port = port;
+        this.bindAddress = bindAddress;
+        this.backlog = backlog;
         this.connectorClass = connectorClass;
         this.acceptor = acceptor;
+
+        this.closeLatch = new CountDownLatch(1);
     }
+
+    public int getPort() {
+        return port;
+    }
+
+    public InetAddress getBindAddress() {
+        return bindAddress;
+    }
+
+    public int getBacklog() {
+        return backlog;
+    }
+
+    public void awaitClosed() throws InterruptedException, IllegalStateException {
+        this.closeLatch.await();
+        checkCause();
+    }
+
+    public boolean awaitClosed(long timeout, TimeUnit timeUnit)
+            throws InterruptedException, IllegalStateException {
+        boolean result = this.closeLatch.await(timeout, timeUnit);
+        checkCause();
+        return result;
+    }
+
+    protected void checkCause() throws IllegalStateException {
+        Throwable cause = this.cause;
+        if (cause != null) throw new IllegalStateException(cause);
+    }
+
+    public boolean isBound() {
+        return this.bound;
+    }
+
+    public abstract SocketAddress getLocalAddress() throws CoIOException;
     
     public Class<? extends SocketHandler> getConnectorClass(){
         return this.connectorClass;
@@ -74,29 +140,28 @@ public abstract class CoServerSocket implements CoChannel {
         return !isOpen();
     }
     
-    public Future<Void> bind(SocketAddress endpoint) throws CoIOException {
-        return bind(endpoint, BACKLOG_DEFAULT);
+    public void bind(Continuation co, SocketAddress endpoint) throws CoIOException {
+        bind(co, endpoint, BACKLOG_DEFAULT);
     }
     
-    public Future<Void> bind(SocketAddress endpoint, int backlog) throws CoIOException {
-        CoScheduler scheduler = getScheduler();
-        return scheduler.bind(this, endpoint, backlog);
-    }
-    
-    public CoSocket accept(Continuation co) throws IllegalStateException {
+    public abstract void bind(Continuation co, SocketAddress endpoint, int backlog)
+            throws CoIOException;
+
+    protected void checkCoContext(Continuation co) throws IllegalStateException {
         if (co.getContext() != this) {
-            throw new IllegalStateException("The continuation context not this server socket");
+            String s = "The continuation context not this server socket";
+            throw new IllegalStateException(s);
         }
         CoScheduler scheduler = getScheduler();
         scheduler.ensureInScheduler();
+    }
+    
+    public void accept(Continuation co) throws IllegalStateException {
+        checkCoContext(co);
 
         debug("accept() ->");
         co.suspend();
-        CoSocket socket = (CoSocket)co.getContext();
-        co.setContext(this);
         debug("accept() <-");
-
-        return socket;
     }
     
     public abstract InetAddress getInetAddress();
@@ -109,6 +174,12 @@ public abstract class CoServerSocket implements CoChannel {
     public void close() {
         CoScheduler scheduler = getScheduler();
         scheduler.close(this);
+        this.closeLatch.countDown();
+    }
+
+    @Override
+    public String toString() {
+        return "co-server";
     }
     
 }

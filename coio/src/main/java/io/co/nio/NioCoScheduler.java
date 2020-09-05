@@ -53,6 +53,7 @@ public class NioCoScheduler implements CoScheduler {
     private volatile boolean started, shutdown;
     private volatile boolean terminated;
     private volatile Thread schedulerThread;
+    private volatile Throwable cause;
     
     private NioCoChannel<?>[] channels;
     private final int maxConnections;
@@ -199,13 +200,20 @@ public class NioCoScheduler implements CoScheduler {
     
 
     @Override
-    public void awaitTermination() throws InterruptedException {
+    public void awaitTermination() throws InterruptedException, IllegalStateException {
         this.schedulerThread.join();
+        Throwable cause = this.cause;
+        if (cause != null) throw new IllegalStateException(cause);
     }
     
     @Override
-    public boolean awaitTermination(long millis) throws InterruptedException {
+    public boolean awaitTermination(long millis)
+            throws InterruptedException, IllegalStateException {
+
         this.schedulerThread.join(millis);
+        Throwable cause = this.cause;
+        if (cause != null) throw new IllegalStateException(cause);
+
         return isTerminated();
     }
     
@@ -375,13 +383,14 @@ public class NioCoScheduler implements CoScheduler {
     
     @Override
     public void shutdown() {
+        Selector sel = this.selector;
+
         this.shutdown = true;
-        final Selector sel = this.selector;
         if(sel != null){
             sel.wakeup();
         }
         
-        for (NioCoScheduler child: this.children) {
+        for (CoScheduler child: this.children) {
             if(child == null){
                 continue;
             }
@@ -414,8 +423,9 @@ public class NioCoScheduler implements CoScheduler {
         channel.id(slot);
         
         final NioCoChannel<?> oldChan = this.channels[slot];
-        if(oldChan != null && oldChan.isOpen()){
-            throw new IllegalStateException(String.format("Channel slot %s used", slot));
+        if (oldChan != null && oldChan.isOpen()) {
+            String s = String.format("Channel slot %s used", slot);
+            throw new IllegalStateException(s);
         }
         
         this.channels[slot] = channel;
@@ -557,12 +567,12 @@ public class NioCoScheduler implements CoScheduler {
             }
             final Channel chan = runChan.channel();
             if (chan instanceof ServerSocketChannel) {
-                this.close(runChan);
+                IoUtils.close(runChan);
                 continue;
             }
             ++actives;
         }
-        debug("tryShutdown(): actives %s", actives);
+        debug("tryShutdown(): active channels %s", actives);
         if(actives == 0){
             this.terminate();
             // Exit normally
@@ -623,29 +633,36 @@ public class NioCoScheduler implements CoScheduler {
                 }
                 
                 runner.run();
-            } catch (final CoroutineException e){
+            } catch (final CoroutineException e) {
                 final Throwable cause = e.getCause();
                 debug("Uncaught exception in coroutine", cause);
             }
         }
     }
     
-    protected void terminate(){
-        debug("Nio coScheduler: terminate()");
+    protected void terminate() {
+        debug("terminate..");
         IoUtils.close(this.selector);
         this.shutdown();
         this.channels = null;
         this.timers   = null;
         this.terminated = true;
+        debug("terminated");
     }
     
-    protected void resume(final NioCoChannel<?> coChannel) {
+    protected void resume(NioCoChannel<?> coChannel) {
         try {
-            if(!coChannel.coRunner().execute()){
+            CoroutineRunner coRunner = coChannel.coRunner();
+            if (!coRunner.execute()) {
+                Object context = coRunner.getContext();
+                if (context instanceof Throwable) {
+                    this.cause = (Throwable)context;
+                }
+                debug("Coroutine completed then close %s", coChannel);
                 IoUtils.close(coChannel);
             }
-        } catch (final CoroutineException coe) {
-            debug("Coroutine executes error", coe);
+        } catch (CoroutineException e) {
+            debug("Coroutine executes failed", e);
             IoUtils.close(coChannel);
         }
     }
@@ -719,9 +736,7 @@ public class NioCoScheduler implements CoScheduler {
                 return;
             } finally {
                 // 2. Next accept
-                final CoroutineRunner coRunner = cosSocket.coRunner();
-                coRunner.setContext(coSocket);
-                coRunner.execute();
+                resume(cosSocket);
             }
             
             // 3-1. Start coSocket

@@ -71,7 +71,8 @@ public interface CoScheduler {
 
     default void ensureInScheduler() throws IllegalStateException {
         if (!inScheduler()) {
-            throw new IllegalStateException("The current thread not this scheduler");
+            String s = "The current thread not this scheduler";
+            throw new IllegalStateException(s);
         }
     }
     

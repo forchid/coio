@@ -19,7 +19,7 @@ package io.co;
 
 import com.offbynull.coroutines.user.Continuation;
 import com.offbynull.coroutines.user.Coroutine;
-import io.co.util.LogUtils;
+import static io.co.util.LogUtils.*;
 
 /** A coroutine that dispatches exception and normal process.
  *
@@ -39,13 +39,14 @@ public interface CoHandler extends Coroutine {
             try {
                 handle(co);
             } catch (Throwable cause) {
+                co.setContext(cause);
                 exceptionCaught(cause);
             }
         }
     }
 
     default void exceptionCaught(Throwable cause) {
-        LogUtils.error("Uncaught exception", cause);
+        debug("Uncaught exception: ", cause);
     }
 
     void handle(Continuation co) throws Exception;

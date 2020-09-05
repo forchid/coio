@@ -16,16 +16,17 @@
  */
 package io.co.nio;
 
+import com.offbynull.coroutines.user.Continuation;
 import io.co.*;
 import io.co.util.IoUtils;
+import static io.co.util.LogUtils.*;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 import com.offbynull.coroutines.user.CoroutineRunner;
 
@@ -37,7 +38,10 @@ import com.offbynull.coroutines.user.CoroutineRunner;
  *
  */
 public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<ServerSocketChannel> {
-    
+
+    protected static String NAME_PREFIX = "nio-server";
+
+    protected String name = NAME_PREFIX;
     protected ServerSocketChannel channel;
     protected CoroutineRunner coRunner;
 
@@ -45,21 +49,21 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
     private int id = -1;
     
     public NioCoServerSocket(Class<? extends SocketHandler> connectorClass) {
-        this(connectorClass, new DefaultAcceptor());
+        this(connectorClass, new Acceptor());
     }
     
     public NioCoServerSocket(int port,  Class<? extends SocketHandler> connectorClass) {
-        this(port, BACKLOG_DEFAULT, null, connectorClass, new DefaultAcceptor());
+        this(port, BACKLOG_DEFAULT, null, connectorClass, new Acceptor());
     }
     
     public NioCoServerSocket(int port, int backlog,
                              Class<? extends SocketHandler> connectorClass) {
-        this(port, backlog, null, connectorClass, new DefaultAcceptor());
+        this(port, backlog, null, connectorClass, new Acceptor());
     }
     
     public NioCoServerSocket(int port, int backlog, InetAddress bindAddress,
                              Class<? extends SocketHandler> connectorClass) {
-        this(port, backlog, bindAddress, connectorClass, new DefaultAcceptor());
+        this(port, backlog, bindAddress, connectorClass, new Acceptor());
     }
     
     public NioCoServerSocket(Class<? extends SocketHandler> connectorClass,
@@ -103,54 +107,68 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
                              Class<? extends SocketHandler> connectorClass,
                              NioCoScheduler coScheduler, ServerSocketHandler acceptor,
                              boolean autoShutdownScheduler) {
-        super(port, connectorClass, coScheduler, acceptor);
+        super(port, bindAddress, backlog, connectorClass, coScheduler, acceptor);
         this.autoShutdownScheduler = autoShutdownScheduler;
-        initialize(port, backlog, bindAddress);
+        initialize(port);
     }
     
-    private void initialize(int port, int backlog, InetAddress bindAddress) throws CoIOException {
-        // 1. Initialize server socket
+    private void initialize(int port) throws CoIOException {
+        if (PORT_UNDEFINED != port) {
+            this.name = NAME_PREFIX + "-" + port;
+        }
+
+        // Initialize server socket
         ServerSocketChannel ssChan = null;
         boolean failed = true;
         try {
             ssChan = ServerSocketChannel.open();
             ssChan.configureBlocking(false);
             this.channel = ssChan;
-            this.coRunner = new CoroutineRunner(super.acceptor);
+            // - Start acceptor
+            NioCoScheduler scheduler = getScheduler();
+            scheduler.execute(() -> {
+                this.coRunner = new CoroutineRunner(super.acceptor);
+                this.coRunner.setContext(this);
+                scheduler.resume(this);
+            });
             failed = false;
-        } catch (final IOException cause){
+        } catch (final IOException cause) {
             throw new CoIOException(cause);
         } finally {
             if(failed){
                 IoUtils.close(ssChan);
             }
         }
-        
-        // 2. Try to bind
-        if(port != PORT_UNDEFINED) {
-            try {
-                failed = true;
-                SocketAddress sa = new InetSocketAddress(bindAddress, port);
-                Future<?> bf = bind(sa, backlog);
-                bf.get();
-                failed = false;
-            } catch(InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new CoIOException(e + "");
-            } catch(ExecutionException e) {
-                Throwable cause = e.getCause();
-                if (cause instanceof CoIOException) {
-                    throw (CoIOException)cause;
-                } else if (cause instanceof IOException) {
-                    throw new CoIOException("Bind failed", (IOException)cause);
-                } else {
-                    throw new IllegalStateException("Bind failed", cause);
-                }
-            } finally {
-                if (failed) {
-                    IoUtils.close(ssChan);
-                    tryShutdownScheduler();
-                }
+    }
+
+    @Override
+    public void bind(Continuation co, SocketAddress endpoint, int backlog) throws CoIOException {
+        checkCoContext(co);
+
+        int unsetPort = getPort();
+        boolean failed = true;
+        try {
+            NioCoScheduler scheduler = getScheduler();
+            scheduler.register(this);
+            ServerSocketChannel ssChan = this.channel;
+            ssChan.bind(endpoint, backlog);
+            InetSocketAddress sa = (InetSocketAddress)getLocalAddress();
+            this.bindAddress = sa.getAddress();
+            this.port = sa.getPort();
+            this.name = NAME_PREFIX + "-" + this.port;
+            ssChan.register(scheduler.selector, SelectionKey.OP_ACCEPT, this);
+            if (PORT_UNDEFINED == unsetPort) {
+                info("Bound then signal accept");
+                scheduler.resume(this);
+            }
+            this.bound = true;
+            failed = false;
+        } catch(final IOException e) {
+            this.cause = e;
+            throw new CoIOException(e);
+        } finally {
+            if(failed){
+                IoUtils.close(this);
             }
         }
     }
@@ -189,7 +207,16 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
     public CoroutineRunner coRunner() {
         return this.coRunner;
     }
-    
+
+    @Override
+    public SocketAddress getLocalAddress() throws CoIOException {
+        try {
+            return this.channel.getLocalAddress();
+        } catch (IOException e) {
+            throw new CoIOException(e);
+        }
+    }
+
     @Override
     public NioCoScheduler getScheduler(){
         return (NioCoScheduler)super.getScheduler();
@@ -199,12 +226,20 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
     public boolean isOpen() {
         return this.channel.isOpen();
     }
-    
+
     @Override
     public void close() {
+        debug("%s close..", this);
         IoUtils.close(this.channel);
+
+        Object context = this.coRunner.getContext();
+        if (context instanceof Throwable) {
+            this.cause = (Throwable)context;
+        }
         super.close();
+
         tryShutdownScheduler();
+        debug("%s closed", this);
     }
     
     @Override
@@ -224,6 +259,11 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
         } catch (final IOException e) {
             throw new CoIOException(e);
         }
+    }
+
+    @Override
+    public String toString() {
+        return this.name;
     }
 
     static NioCoScheduler newScheduler(int port) {
