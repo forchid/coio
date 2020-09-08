@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, little-pan, All rights reserved.
+ * Copyright (c) 2020, little-pan, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -53,13 +53,13 @@ public class Acceptor implements ServerSocketHandler {
         SocketAddress sa = serverSocket.getLocalAddress();
         info("%s listen on %s", serverSocket, sa);
 
-        CoScheduler scheduler = serverSocket.getScheduler();
+        Scheduler scheduler = serverSocket.getScheduler();
         while (!scheduler.isShutdown()) {
-            accept(co, serverSocket);
+            handleAcception(co, serverSocket);
         }
     }
 
-    protected void accept(Continuation co, CoServerSocket serverSocket) {
+    protected void handleAcception(Continuation co, CoServerSocket serverSocket) {
         serverSocket.accept(co);
     }
 

@@ -16,10 +16,11 @@
  */
 package io.co;
 
-import java.io.IOException;
+import java.net.InetAddress;
 import java.net.SocketAddress;
+import java.net.UnknownHostException;
 
-import io.co.nio.NioCoSocket;
+import com.offbynull.coroutines.user.Continuation;
 
 /**
  * A socket based on coroutines.
@@ -32,16 +33,47 @@ public abstract class CoSocket implements CoChannel {
     
     protected static final int SO_TIMEOUT = Integer.getInteger("io.co.soTimeout", 0);
 
-    protected final CoScheduler scheduler;
+    protected InetAddress address;
+    protected int port = PORT_UNDEFINED;
+
+    protected final Scheduler scheduler;
     protected final SocketHandler coConnector;
     private int soTimeout = SO_TIMEOUT;
-    
-    protected CoSocket(SocketHandler coConnector, CoScheduler scheduler) {
+
+    protected CoSocket(InetAddress address, int port,
+                       SocketHandler connector, Scheduler scheduler) {
+
+        this(connector, scheduler);
+        checkPort(port);
+        this.address = address;
+        this.port = port;
+    }
+
+    protected CoSocket(String host, int port, SocketHandler connector, Scheduler scheduler)
+            throws CoIOException {
+
+        this(connector, scheduler);
+        checkPort(port);
+        try {
+            this.address = InetAddress.getByName(host);
+            this.port = port;
+        } catch (UnknownHostException e) {
+            throw new CoIOException(e);
+        }
+    }
+
+    protected CoSocket(SocketHandler connector, Scheduler scheduler) {
         this.scheduler = scheduler;
-        this.coConnector = coConnector;
+        this.coConnector = connector;
+    }
+
+    static void checkPort(int port) throws IllegalArgumentException {
+        if((port < 0 && PORT_UNDEFINED != port) || port > 65535) {
+            throw new IllegalArgumentException("port " + port);
+        }
     }
     
-    public ChannelHandler<? extends CoSocket> getConnector(){
+    public SocketHandler getConnector(){
         return this.coConnector;
     }
     
@@ -55,10 +87,21 @@ public abstract class CoSocket implements CoChannel {
         }
         this.soTimeout = soTimeout;
     }
+
+    public InetAddress getAddress() {
+        return address;
+    }
+
+    public int getPort() {
+        return port;
+    }
     
-    public abstract void connect(SocketAddress endpoint) throws IOException;
+    public void connect(Continuation co, SocketAddress endpoint) throws CoIOException {
+        connect(co, endpoint, 0);
+    }
     
-    public abstract void connect(SocketAddress endpoint, int timeout) throws IOException;
+    public abstract void connect(Continuation co, SocketAddress endpoint, int timeout)
+            throws CoIOException;
     
     public abstract CoInputStream getInputStream();
     
@@ -67,23 +110,13 @@ public abstract class CoSocket implements CoChannel {
     public abstract boolean isConnected();
 
     @Override
-    public CoScheduler getScheduler() {
+    public Scheduler getScheduler() {
         return this.scheduler;
     }
     
     @Override
     public void close() {
         this.scheduler.close(this);
-    }
-    
-    public static void startAndServe(SocketHandler coConnector, SocketAddress remote)
-            throws CoIOException {
-        NioCoSocket.startAndServe(coConnector, remote);
-    }
-    
-    public static void startAndServe(SocketHandler coConnector, SocketAddress remote,
-                                     int timeout) throws CoIOException {
-        NioCoSocket.startAndServe(coConnector, remote, timeout);
     }
     
 }

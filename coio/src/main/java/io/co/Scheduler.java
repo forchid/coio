@@ -16,8 +16,6 @@
  */
 package io.co;
 
-import java.io.IOException;
-import java.net.SocketAddress;
 import java.util.concurrent.Future;
 
 import com.offbynull.coroutines.user.Continuation;
@@ -30,7 +28,7 @@ import static io.co.util.RuntimeUtils.*;
  * @since 2019-05-13
  *
  */
-public interface CoScheduler {
+public interface Scheduler {
     
     int INIT_CONNECTIONS = Integer.getInteger("io.co.initConnections", 1024);
     int MAX_CONNECTIONS  = Integer.getInteger("io.co.maxConnections",  102400);
@@ -48,20 +46,11 @@ public interface CoScheduler {
     
     boolean isStarted();
     
-    Future<Void> bind(CoServerSocket serverSocket, SocketAddress endpoint, int backlog)
-        throws CoIOException;
-    
-    void connect(CoSocket socket, SocketAddress remote)
-        throws IOException;
-    
-    void connect(CoSocket socket, SocketAddress remote, int timeout)
-        throws IOException;
-    
     void schedule(CoSocket socket, Runnable task, long delay);
     
     void schedule(CoSocket socket, Runnable task, long delay, long period);
     
-    Future<Void> execute(Runnable task) throws CoIOException;
+    Future<?> execute(Runnable task) throws CoIOException;
     
     <V> Future<V> execute(Runnable task, V value) throws CoIOException;
     
@@ -76,7 +65,7 @@ public interface CoScheduler {
         }
     }
     
-    void close(CoChannel socket);
+    void close(CoChannel channel);
     
     boolean isTerminated();
     

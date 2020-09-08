@@ -36,7 +36,7 @@ public class EchoServer {
 
     public static void main(String[] args) throws Exception {
         serverThread = Thread.currentThread();
-        CoServerSocket server = new NioCoServerSocket(PORT, Connector.class);
+        CoServerSocket server = new NioCoServerSocket(PORT, EchoHandler.class);
         startLatch.countDown();
         try {
             server.awaitClosed();
@@ -58,14 +58,15 @@ public class EchoServer {
         startLatch.await();
     }
 
-    static class Connector implements SocketHandler {
+    static class EchoHandler extends Connector {
+
         private static final long serialVersionUID = 1L;
 
         @Override
-        public void handle(Continuation co, CoSocket socket) {
+        public void handleConnection(Continuation co, CoSocket socket) {
             final CoInputStream in = socket.getInputStream();
             final CoOutputStream out = socket.getOutputStream();
-            CoScheduler scheduler = socket.getScheduler();
+            Scheduler scheduler = socket.getScheduler();
             try {
                 final byte[] b = new byte[512];
                 while (!scheduler.isShutdown()) {

@@ -27,7 +27,9 @@ import java.nio.channels.Channel;
  */
 public interface CoChannel extends Channel {
 
-    CoScheduler getScheduler();
+    int PORT_UNDEFINED  = -1;
+
+    Scheduler getScheduler();
 
     @Override
     boolean isOpen();

@@ -16,15 +16,10 @@
  */
 package io.co.nio;
 
-import io.co.CoInputStream;
-import io.co.CoOutputStream;
-import io.co.CoSocket;
-import io.co.SocketHandler;
+import io.co.*;
 import io.co.util.IoUtils;
 
 import java.io.EOFException;
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.offbynull.coroutines.user.Continuation;
@@ -55,14 +50,13 @@ public class EchoClient {
         schedulerCount = Math.min(4, connectionCount);
         
         final long ts = System.currentTimeMillis();
-        final SocketAddress remote = new InetSocketAddress(host, PORT);
         
         // Parallel scheduler
-        final NioCoScheduler[] schedulers = new NioCoScheduler[schedulerCount];
+        final NioScheduler[] schedulers = new NioScheduler[schedulerCount];
         final AtomicInteger []remains = new AtomicInteger[schedulerCount];
         for (int i = 0; i < schedulers.length; ++i) {
             final String name = "nio-"+ i;
-            schedulers[i] = new NioCoScheduler(name, connectionCount, connectionCount, 0);
+            schedulers[i] = new NioScheduler(name, connectionCount, connectionCount, 0);
             schedulers[i].start();
             remains[i] = new AtomicInteger();
         }
@@ -71,15 +65,14 @@ public class EchoClient {
         try {
             for(int i = 0; i < connectionCount; ++i){
                 final int j = i % schedulers.length;
-                final NioCoScheduler scheduler = schedulers[j];
+                final NioScheduler scheduler = schedulers[j];
                 final AtomicInteger remain = remains[j];
-                final SocketHandler connector = new Connector(i, successCount, remain, scheduler);
-                final CoSocket sock = new NioCoSocket(connector, scheduler);
-                sock.connect(remote, 30000);
+                final SocketHandler connector = new EchoHandler(i, successCount, remain, scheduler);
+                new NioCoSocket(host, PORT, connector, scheduler);
                 remain.incrementAndGet();
             }
         } finally {
-            for(final NioCoScheduler s : schedulers){
+            for(final NioScheduler s : schedulers){
                 s.awaitTermination();
             }
         }
@@ -88,15 +81,15 @@ public class EchoClient {
                 connectionCount, successCount, System.currentTimeMillis() - ts);
     }
     
-    static class Connector implements SocketHandler {
+    static class EchoHandler extends Connector {
         private static final long serialVersionUID = 1L;
         
-        final NioCoScheduler scheduler;
+        final NioScheduler scheduler;
         final AtomicInteger success;
         final AtomicInteger remain;
         final int id;
-        
-        Connector(int id, AtomicInteger success, AtomicInteger remain, NioCoScheduler scheduler){
+
+        EchoHandler(int id, AtomicInteger success, AtomicInteger remain, NioScheduler scheduler){
             this.scheduler = scheduler;
             this.success   = success;
             this.remain    = remain;
@@ -104,7 +97,7 @@ public class EchoClient {
         }
 
         @Override
-        public void handle(Continuation co, CoSocket socket) throws Exception {
+        public void handleConnection(Continuation co, CoSocket socket) throws Exception {
             try {
                 debug("Connected: %s", socket);
                 final long ts = System.currentTimeMillis();
@@ -127,15 +120,28 @@ public class EchoClient {
                         reads += n;
                     }
                 }
-                success.incrementAndGet();
+                this.success.incrementAndGet();
                 info("Client-%05d: time %dms", id, (System.currentTimeMillis() - ts));
             } finally {
-                remain.decrementAndGet();
                 IoUtils.close(socket);
-                // Shutdown only when all connection completed
-                if(remain.compareAndSet(0, 0)){
-                    scheduler.shutdown();
-                }
+            }
+            tryShutdown();
+        }
+
+        void tryShutdown() {
+            this.remain.decrementAndGet();
+            // Shutdown only when all connection completed
+            if (this.remain.compareAndSet(0, 0)) {
+                this.scheduler.shutdown();
+            }
+        }
+
+        @Override
+        public void exceptionCaught(Throwable cause) {
+            try {
+                super.exceptionCaught(cause);
+            } finally {
+                tryShutdown();
             }
         }
         

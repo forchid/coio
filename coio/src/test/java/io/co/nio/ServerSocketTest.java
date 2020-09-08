@@ -40,7 +40,7 @@ public class ServerSocketTest extends TestCase {
 
     public void testBind() throws Exception {
         NioCoServerSocket serverSocket = null;
-        NioCoScheduler scheduler;
+        NioScheduler scheduler;
         InetSocketAddress sa;
         int port;
 
@@ -61,8 +61,7 @@ public class ServerSocketTest extends TestCase {
             serverSocket = new NioCoServerSocket(port, ShutdownSocketHandler.class);
             scheduler = serverSocket.getScheduler();
             assertFalse(scheduler.isShutdown());
-            sa = new InetSocketAddress(port);
-            new NioCoSocket(new ShutdownSocketHandler(), scheduler).connect(sa);
+            new NioCoSocket(port, new ShutdownSocketHandler(), scheduler);
             serverSocket.awaitClosed();
             assertTrue(scheduler.isShutdown());
 
@@ -112,7 +111,7 @@ public class ServerSocketTest extends TestCase {
                 runner.setContext(ss);
                 runner.execute();
             });
-            new NioCoSocket(new ShutdownSocketHandler(), scheduler).connect(a);
+            new NioCoSocket(port, new ShutdownSocketHandler(), scheduler);
             serverSocket.awaitClosed();
             assertTrue(scheduler.isShutdown());
 
@@ -121,11 +120,11 @@ public class ServerSocketTest extends TestCase {
         }
     }
 
-    static class ShutdownSocketHandler implements SocketHandler {
+    static class ShutdownSocketHandler extends Connector {
 
         @Override
-        public void handle(Continuation co, CoSocket socket) throws Exception {
-            CoScheduler scheduler = socket.getScheduler();
+        public void handleConnection(Continuation co, CoSocket socket) throws Exception {
+            Scheduler scheduler = socket.getScheduler();
             socket.close();
             scheduler.shutdown();
         }

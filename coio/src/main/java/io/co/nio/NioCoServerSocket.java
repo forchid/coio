@@ -72,8 +72,8 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
     }
     
     public NioCoServerSocket(Class<? extends SocketHandler> connectorClass,
-                             NioCoScheduler coScheduler, ServerSocketHandler acceptor) {
-        this(PORT_UNDEFINED, BACKLOG_DEFAULT, null, connectorClass, coScheduler, acceptor);
+                             NioScheduler scheduler, ServerSocketHandler acceptor) {
+        this(PORT_UNDEFINED, BACKLOG_DEFAULT, null, connectorClass, scheduler, acceptor);
     }
     
     public NioCoServerSocket(int port, Class<? extends SocketHandler> connectorClass,
@@ -82,13 +82,13 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
     }
     
     public NioCoServerSocket(int port, Class<? extends SocketHandler> connectorClass,
-                             NioCoScheduler coScheduler, ServerSocketHandler acceptor) {
-        this(port, BACKLOG_DEFAULT, null, connectorClass, coScheduler, acceptor);
+                             NioScheduler scheduler, ServerSocketHandler acceptor) {
+        this(port, BACKLOG_DEFAULT, null, connectorClass, scheduler, acceptor);
     }
     
     public NioCoServerSocket(int port, int backlog, Class<? extends SocketHandler> connectorClass,
-                             NioCoScheduler coScheduler, ServerSocketHandler acceptor) {
-        this(port, backlog, null, connectorClass, coScheduler, acceptor);
+                             NioScheduler scheduler, ServerSocketHandler acceptor) {
+        this(port, backlog, null, connectorClass, scheduler, acceptor);
     }
 
     public NioCoServerSocket(int port, int backlog, InetAddress bindAddress,
@@ -99,15 +99,15 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
 
     public NioCoServerSocket(int port, int backlog, InetAddress bindAddress,
                              Class<? extends SocketHandler> connectorClass,
-                             NioCoScheduler coScheduler, ServerSocketHandler acceptor) {
-        this(port, backlog, bindAddress, connectorClass, coScheduler, acceptor, false);
+                             NioScheduler scheduler, ServerSocketHandler acceptor) {
+        this(port, backlog, bindAddress, connectorClass, scheduler, acceptor, false);
     }
     
     public NioCoServerSocket(int port, int backlog, InetAddress bindAddress,
                              Class<? extends SocketHandler> connectorClass,
-                             NioCoScheduler coScheduler, ServerSocketHandler acceptor,
+                             NioScheduler scheduler, ServerSocketHandler acceptor,
                              boolean autoShutdownScheduler) {
-        super(port, bindAddress, backlog, connectorClass, coScheduler, acceptor);
+        super(port, bindAddress, backlog, connectorClass, scheduler, acceptor);
         this.autoShutdownScheduler = autoShutdownScheduler;
         initialize(port);
     }
@@ -125,7 +125,7 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
             ssChan.configureBlocking(false);
             this.channel = ssChan;
             // - Start acceptor
-            NioCoScheduler scheduler = getScheduler();
+            NioScheduler scheduler = getScheduler();
             scheduler.execute(() -> {
                 this.coRunner = new CoroutineRunner(super.acceptor);
                 this.coRunner.setContext(this);
@@ -148,7 +148,7 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
         int unsetPort = getPort();
         boolean failed = true;
         try {
-            NioCoScheduler scheduler = getScheduler();
+            NioScheduler scheduler = getScheduler();
             scheduler.register(this);
             ServerSocketChannel ssChan = this.channel;
             ssChan.bind(endpoint, backlog);
@@ -179,7 +179,7 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
 
     protected void tryShutdownScheduler() {
         if (isAutoShutdownScheduler()) {
-            CoScheduler scheduler = getScheduler();
+            Scheduler scheduler = getScheduler();
             scheduler.shutdown();
         }
     }
@@ -218,8 +218,8 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
     }
 
     @Override
-    public NioCoScheduler getScheduler(){
-        return (NioCoScheduler)super.getScheduler();
+    public NioScheduler getScheduler(){
+        return (NioScheduler)super.getScheduler();
     }
 
     @Override
@@ -266,8 +266,8 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
         return this.name;
     }
 
-    static NioCoScheduler newScheduler(int port) {
-        NioCoScheduler scheduler = null;
+    static NioScheduler newScheduler(int port) {
+        NioScheduler scheduler = null;
         boolean failed = true;
         try {
             final String name;
@@ -276,7 +276,7 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
             } else {
                 name = "nio-server";
             }
-            scheduler = new NioCoScheduler(name);
+            scheduler = new NioScheduler(name);
             scheduler.start();
             failed = false;
 

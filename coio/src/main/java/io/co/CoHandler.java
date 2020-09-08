@@ -46,7 +46,7 @@ public interface CoHandler extends Coroutine {
     }
 
     default void exceptionCaught(Throwable cause) {
-        debug("Uncaught exception: ", cause);
+        error("Uncaught exception: ", cause);
     }
 
     void handle(Continuation co) throws Exception;

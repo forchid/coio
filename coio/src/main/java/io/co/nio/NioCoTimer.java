@@ -32,7 +32,7 @@ public class NioCoTimer implements Runnable {
     
     int id = -1;
     
-    protected final NioCoScheduler scheduler;
+    protected final NioScheduler scheduler;
     protected final CoSocket source;
     protected Runnable task;
     

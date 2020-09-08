@@ -41,7 +41,7 @@ public class NioConnectionTimer extends NioCoTimer {
             return;
         }
         
-        final NioCoScheduler scheduler = (NioCoScheduler)this.scheduler;
+        final NioScheduler scheduler = this.scheduler;
         final NioCoSocket source = (NioCoSocket)source();
         final CoroutineRunner coRunner = source.coRunner();
         

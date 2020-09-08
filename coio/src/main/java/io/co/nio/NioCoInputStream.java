@@ -42,11 +42,12 @@ public class NioCoInputStream extends CoInputStream {
     final Selector selector;
     protected ByteBuffer buffer;
     
-    public NioCoInputStream(NioCoSocket coSocket, SocketChannel channel, Selector selector){
+    public NioCoInputStream(NioCoSocket coSocket, SocketChannel channel, Selector selector) {
         this(coSocket, channel, selector, BUFFER_SIZE);
     }
     
-    public NioCoInputStream(NioCoSocket coSocket, SocketChannel channel, Selector selector, int bufferSize){
+    public NioCoInputStream(NioCoSocket coSocket, SocketChannel channel, Selector selector,
+                            int bufferSize) {
         this.coSocket= coSocket;
         this.channel = channel;
         this.selector= selector;

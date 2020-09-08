@@ -35,7 +35,6 @@ import static io.co.util.LogUtils.*;
 public abstract class CoServerSocket implements CoChannel {
     
     protected static final int BACKLOG_DEFAULT = 150;
-    protected static final int PORT_UNDEFINED  = -1;
 
     protected final CountDownLatch closeLatch;
     protected int port;
@@ -44,35 +43,35 @@ public abstract class CoServerSocket implements CoChannel {
     protected volatile boolean bound;
     protected volatile Throwable cause;
 
-    protected final CoScheduler scheduler;
+    protected final Scheduler scheduler;
     protected final ServerSocketHandler acceptor;
     protected final Class<? extends SocketHandler> connectorClass;
     
     protected CoServerSocket(Class<? extends SocketHandler> connectorClass,
-                             CoScheduler scheduler, ServerSocketHandler acceptor) {
+                             Scheduler scheduler, ServerSocketHandler acceptor) {
         this(PORT_UNDEFINED, null, BACKLOG_DEFAULT, connectorClass, scheduler, acceptor);
     }
 
     protected CoServerSocket(int port, Class<? extends SocketHandler> connectorClass,
-                             CoScheduler scheduler, ServerSocketHandler acceptor) {
+                             Scheduler scheduler, ServerSocketHandler acceptor) {
         this(port, null, BACKLOG_DEFAULT, connectorClass, scheduler, acceptor);
     }
 
     protected CoServerSocket(int port, InetAddress bindAddress,
                              Class<? extends SocketHandler> connectorClass,
-                             CoScheduler scheduler, ServerSocketHandler acceptor) {
+                             Scheduler scheduler, ServerSocketHandler acceptor) {
         this(port, bindAddress, BACKLOG_DEFAULT, connectorClass, scheduler, acceptor);
     }
 
     protected CoServerSocket(int port, int backlog,
                              Class<? extends SocketHandler> connectorClass,
-                             CoScheduler scheduler, ServerSocketHandler acceptor) {
+                             Scheduler scheduler, ServerSocketHandler acceptor) {
         this(port, null, backlog, connectorClass, scheduler, acceptor);
     }
     
     protected CoServerSocket(int port, InetAddress bindAddress, int backlog,
                              Class<? extends SocketHandler> connectorClass,
-                             CoScheduler scheduler, ServerSocketHandler acceptor) {
+                             Scheduler scheduler, ServerSocketHandler acceptor) {
 
         if (scheduler == null) throw new NullPointerException();
         this.scheduler = scheduler;
@@ -129,7 +128,7 @@ public abstract class CoServerSocket implements CoChannel {
     }
 
     @Override
-    public CoScheduler getScheduler() {
+    public Scheduler getScheduler() {
         return this.scheduler;
     }
 
@@ -152,7 +151,7 @@ public abstract class CoServerSocket implements CoChannel {
             String s = "The continuation context not this server socket";
             throw new IllegalStateException(s);
         }
-        CoScheduler scheduler = getScheduler();
+        Scheduler scheduler = getScheduler();
         scheduler.ensureInScheduler();
     }
     
@@ -172,7 +171,7 @@ public abstract class CoServerSocket implements CoChannel {
  
     @Override
     public void close() {
-        CoScheduler scheduler = getScheduler();
+        Scheduler scheduler = getScheduler();
         scheduler.close(this);
         this.closeLatch.countDown();
     }

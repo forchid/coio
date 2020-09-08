@@ -24,7 +24,6 @@ import static io.co.util.LogUtils.*;
 import junit.framework.TestCase;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 
 /**
  * @author little-pan
@@ -41,11 +40,9 @@ public class AcceptTest extends TestCase {
         System.setProperty("io.co.debug", "true");
         int port = 9960;
         NioCoServerSocket server = new NioCoServerSocket(port, ServerHandler.class);
-        NioCoScheduler scheduler = server.getScheduler();
+        NioScheduler scheduler = server.getScheduler();
 
-        CoSocket socket = new NioCoSocket(new ClientHandler(), scheduler);
-        socket.connect(new InetSocketAddress(port));
-        
+        CoSocket socket = new NioCoSocket(port, new ClientHandler(), scheduler);
         info("wait");
         server.awaitClosed();
         socket.close();
@@ -53,13 +50,13 @@ public class AcceptTest extends TestCase {
         info("OK");
     }
 
-    static class ClientHandler implements SocketHandler {
+    static class ClientHandler extends Connector {
 
         private static final long serialVersionUID = 1L;
 
         @Override
-        public void handle(Continuation co, CoSocket socket) throws Exception {
-            CoScheduler scheduler = socket.getScheduler();
+        public void handleConnection(Continuation co, CoSocket socket) throws Exception {
+            Scheduler scheduler = socket.getScheduler();
             try {
                 info("%s connected", socket);
                 CoOutputStream out = socket.getOutputStream();
@@ -75,12 +72,12 @@ public class AcceptTest extends TestCase {
 
     }
 
-    static class ServerHandler implements SocketHandler {
+    static class ServerHandler extends Connector {
 
         private static final long serialVersionUID = 1L;
 
         @Override
-        public void handle(Continuation co, CoSocket socket) throws Exception {
+        public void handleConnection(Continuation co, CoSocket socket) throws Exception {
             try {
                 info("%s accepted", socket);
                 int i = socket.getInputStream().read(co);

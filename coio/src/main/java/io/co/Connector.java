@@ -18,30 +18,32 @@
 package io.co;
 
 import com.offbynull.coroutines.user.Continuation;
-import io.co.util.IoUtils;
 
-/** A coroutine that handles channel.
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+
+/**
+ * The default connect coroutine.
  *
  * @author little-pan
- * @since 2020-09-02
+ * @since 2019-09-08
+ *
  */
-public interface ChannelHandler<T extends CoChannel> extends CoHandler {
+public abstract class Connector implements SocketHandler {
 
     @Override
-    @SuppressWarnings("unchecked")
-    default void handle(Continuation co) throws Exception {
-        Object context = co.getContext();
-        T channel = (T) context;
-
-        boolean failed = true;
-        try {
-            handle(co, channel);
-            failed = false;
-        } finally {
-            if (failed) IoUtils.close(channel);
+    public void handle(Continuation co, CoSocket socket) throws Exception {
+        int port = socket.getPort();
+        if (CoSocket.PORT_UNDEFINED != port && !socket.isConnected()) {
+            SocketAddress sa = new InetSocketAddress(socket.getAddress(), port);
+            socket.connect(co, sa, socket.getSoTimeout());
+            // wait for connection finished
+            co.suspend();
         }
+        handleConnection(co, socket);
     }
 
-    void handle(Continuation co, T channel) throws Exception;
+    public abstract void handleConnection(Continuation co, CoSocket socket)
+            throws Exception;
 
 }

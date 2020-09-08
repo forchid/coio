@@ -16,10 +16,11 @@
  */
 package io.co.nio;
 
-import java.io.IOException;
 import java.net.SocketAddress;
 import java.nio.channels.SocketChannel;
 
+import com.offbynull.coroutines.user.Continuation;
+import io.co.CoIOException;
 import io.co.SocketHandler;
 
 /** 
@@ -29,18 +30,23 @@ import io.co.SocketHandler;
  */
 class PassiveNioCoSocket extends NioCoSocket {
     
-    public PassiveNioCoSocket(SocketHandler coConnector,
-                              SocketChannel channel, NioCoScheduler coScheduler){
-        super(coConnector, channel, coScheduler);
+    public PassiveNioCoSocket(SocketHandler coConnector, NioScheduler scheduler,
+                              SocketChannel channel) {
+        super(coConnector, scheduler, channel);
     }
-    
-    @Override
-    public void connect(SocketAddress endpoint) throws IOException {
-        throw new UnsupportedOperationException();
+
+    protected void start() {
+        NioScheduler scheduler = getScheduler();
+
+        scheduler.register(this);
+        // Coroutine start
+        coRunner().setContext(this);
+        scheduler.resume(this);
     }
 
     @Override
-    public void connect(SocketAddress endpoint, int timeout) throws IOException {
+    public void connect(Continuation co, SocketAddress endpoint, int timeout)
+            throws CoIOException {
         throw new UnsupportedOperationException();
     }
 
