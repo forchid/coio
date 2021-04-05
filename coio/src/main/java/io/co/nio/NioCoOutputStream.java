@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, little-pan, All rights reserved.
+ * Copyright (c) 2021, little-pan, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -24,7 +24,6 @@ import java.nio.channels.SocketChannel;
 
 import com.offbynull.coroutines.user.Continuation;
 
-import io.co.CoIOException;
 import io.co.CoOutputStream;
 import io.co.util.IoUtils;
 
@@ -37,25 +36,25 @@ import io.co.util.IoUtils;
  */
 public class NioCoOutputStream extends CoOutputStream {
     
-    protected final NioCoSocket coSocket;
+    protected final NioCoSocket socket;
     protected final Selector selector;
     protected final SocketChannel channel;
     private ByteBuffer buffer;
     
-    public NioCoOutputStream(NioCoSocket coSocket, SocketChannel channel, Selector selector) {
-        this(coSocket, channel, selector, BUFFER_SIZE);
+    public NioCoOutputStream(NioCoSocket socket, SocketChannel channel, Selector selector) {
+        this(socket, channel, selector, BUFFER_SIZE);
     }
     
-    public NioCoOutputStream(NioCoSocket coSocket, SocketChannel channel, Selector selector,
+    public NioCoOutputStream(NioCoSocket socket, SocketChannel channel, Selector selector,
                              int bufferSize) {
-        this.coSocket= coSocket;
+        this.socket  = socket;
         this.selector= selector;
         this.channel = channel;
         this.buffer  = ByteBuffer.allocate(bufferSize);
     }
     
     @Override
-    public void write(Continuation co, int b) throws CoIOException {
+    public void write(Continuation co, int b) throws IOException {
         final ByteBuffer buf = this.buffer;
         if(buf.hasRemaining()){
             buf.put((byte)b);
@@ -65,7 +64,7 @@ public class NioCoOutputStream extends CoOutputStream {
         write(co, b);
     }
     
-    public void write(Continuation co, byte[] b, int off, int len) throws CoIOException {
+    public void write(Continuation co, byte[] b, int off, int len) throws IOException {
         final ByteBuffer buf = this.buffer;
         if(buf.hasRemaining()){
             final int size = Math.min(buf.remaining(), len);
@@ -92,31 +91,29 @@ public class NioCoOutputStream extends CoOutputStream {
     }
     
     @Override
-    public void flush(Continuation co) throws CoIOException {
+    public void flush(Continuation co) throws IOException {
         final ByteBuffer buf = this.buffer;
         buf.flip();
         flush(co, buf);
         buf.clear();
     }
     
-    protected void flush(Continuation co, final ByteBuffer buf) throws CoIOException {
+    protected void flush(Continuation co, final ByteBuffer buf) throws IOException {
         if(!buf.hasRemaining()){
             return;
         }
         
-        final SocketChannel chan = this.channel;
-        final SelectionKey selKey = IoUtils.enableWrite(chan, this.selector, this.coSocket);
+        final SocketChannel ch = this.channel;
+        final SelectionKey selKey = IoUtils.enableWrite(ch, this.selector, this.socket);
         try{
-            for(;buf.hasRemaining();){
-                final int n = chan.write(buf);
-                if(n == 0){
-                    co.suspend();
+            while (buf.hasRemaining()) {
+                final int n = ch.write(buf);
+                if (n == 0) {
+                    this.socket.suspend(co);
                 }
             }
-        }catch(final IOException cause){
-            throw new CoIOException(cause);
-        }finally{
-            IoUtils.disableWrite(selKey, this.selector, this.coSocket);
+        } finally {
+            IoUtils.disableWrite(selKey, this.selector, this.socket);
         }
     }
     

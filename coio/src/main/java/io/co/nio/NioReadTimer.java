@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, little-pan, All rights reserved.
+ * Copyright (c) 2021, little-pan, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,6 +16,10 @@
  */
 package io.co.nio;
 
+import io.co.CoContext;
+
+import java.net.SocketTimeoutException;
+
 import static io.co.util.LogUtils.*;
 
 /**
@@ -25,8 +29,6 @@ import static io.co.util.LogUtils.*;
  */
 public class NioReadTimer extends NioCoTimer {
     
-    boolean timeout;
-    
     public NioReadTimer(NioCoSocket source, int timeout){
         super(source, timeout);
     }
@@ -34,13 +36,14 @@ public class NioReadTimer extends NioCoTimer {
     @Override
     public void run() {
         debug("Running: %s", this);
-        if(this.isCanceled()){
+        if (this.isCanceled()) {
             return;
         }
         
-        final NioScheduler scheduler = this.scheduler;
-        final NioCoSocket source = (NioCoSocket)source();
-        this.timeout = true;
+        NioScheduler scheduler = this.scheduler;
+        NioCoSocket source = (NioCoSocket)source();
+        CoContext context = source.getContext();
+        context.attach(new SocketTimeoutException("Read timeout"));
         scheduler.resume(source);
     }
     

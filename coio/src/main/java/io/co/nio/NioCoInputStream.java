@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, little-pan, All rights reserved.
+ * Copyright (c) 2021, little-pan, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,7 +17,6 @@
 package io.co.nio;
 
 import java.io.IOException;
-import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -25,7 +24,6 @@ import java.nio.channels.SocketChannel;
 
 import com.offbynull.coroutines.user.Continuation;
 
-import io.co.CoIOException;
 import io.co.CoInputStream;
 import io.co.util.IoUtils;
 
@@ -37,48 +35,46 @@ import io.co.util.IoUtils;
  *
  */
 public class NioCoInputStream extends CoInputStream {
-    final NioCoSocket coSocket;
+
+    final NioCoSocket socket;
     final SocketChannel channel;
     final Selector selector;
     protected ByteBuffer buffer;
     
-    public NioCoInputStream(NioCoSocket coSocket, SocketChannel channel, Selector selector) {
-        this(coSocket, channel, selector, BUFFER_SIZE);
+    public NioCoInputStream(NioCoSocket socket, SocketChannel channel, Selector selector) {
+        this(socket, channel, selector, BUFFER_SIZE);
     }
     
-    public NioCoInputStream(NioCoSocket coSocket, SocketChannel channel, Selector selector,
+    public NioCoInputStream(NioCoSocket socket, SocketChannel channel, Selector selector,
                             int bufferSize) {
-        this.coSocket= coSocket;
+        this.socket  = socket;
         this.channel = channel;
         this.selector= selector;
         this.buffer  = ByteBuffer.allocate(bufferSize);
         this.buffer.flip();
     }
-    
-    public int available(Continuation co) throws CoIOException {
+
+    @Override
+    public int available(Continuation co) throws IOException {
         final ByteBuffer buf = this.buffer;
         if(buf.hasRemaining()) {
             return buf.remaining();
         }
-        
-        try {
-            final SocketChannel chan = this.channel;
-            buf.clear();
-            for(; buf.hasRemaining(); ){
-                final int n = chan.read(buf);
-                if(n == 0 || n == -1){
-                    break;
-                }
+
+        buf.clear();
+        while (buf.hasRemaining()) {
+            final int n = this.channel.read(buf);
+            if(n == 0 || n == -1){
+                break;
             }
-            buf.flip();
-            return buf.remaining();
-        } catch (final IOException cause) {
-            throw new CoIOException(cause);
         }
+        buf.flip();
+
+        return buf.remaining();
     }
     
     @Override
-    public int read(Continuation co) throws CoIOException {
+    public int read(Continuation co) throws IOException {
         final ByteBuffer buf = this.buffer;
         if(buf.hasRemaining()){
             return buf.get();
@@ -93,7 +89,7 @@ public class NioCoInputStream extends CoInputStream {
         return buf.get();
     }
     
-    public int read(Continuation co, byte[] b, int off, int len) throws CoIOException {
+    public int read(Continuation co, byte[] b, int off, int len) throws IOException {
         if(len < 0) {
             throw new IllegalArgumentException("len " + len);
         }
@@ -121,28 +117,25 @@ public class NioCoInputStream extends CoInputStream {
         return (n + i);
     }
     
-    protected int read(Continuation co, ByteBuffer buf) throws CoIOException {
-        final SocketChannel chan = this.channel;
-        final SelectionKey selKey = IoUtils.enableRead(chan, this.selector, this.coSocket);
+    protected int read(Continuation co, ByteBuffer buf) throws IOException {
+        final SocketChannel ch = this.channel;
+        final SelectionKey selKey = IoUtils.enableRead(ch, this.selector, this.socket);
         try {
             for(;;){
-                int i = chan.read(buf);
+                int i = ch.read(buf);
                 if(i == -1) {
                     return -1;
                 }
-                if(i == 0) {
-                    final NioReadTimer timer = this.coSocket.startReadTimer();
-                    co.suspend();
-                    if(timer != null && timer.timeout){
-                        throw new SocketTimeoutException("Read timeout");
-                    }
-                    this.coSocket.cancelReadTimer();
+                if (i == 0) {
+                    this.socket.startReadTimer();
+                    this.socket.suspend(co);
+                    this.socket.cancelReadTimer();
                     continue;
                 }
                 int n = i;
                 // Read more
-                for(; buf.hasRemaining(); ){
-                    i = chan.read(buf);
+                while (buf.hasRemaining()) {
+                    i = ch.read(buf);
                     if(i == 0 || i == -1){
                         break;
                     }
@@ -150,11 +143,9 @@ public class NioCoInputStream extends CoInputStream {
                 }
                 return n;
             }
-        } catch (final IOException cause){
-            throw new CoIOException(cause);
         } finally {
-            IoUtils.disableRead(selKey, this.selector, this.coSocket);
-            this.coSocket.cancelReadTimer();
+            IoUtils.disableRead(selKey, this.selector, this.socket);
+            this.socket.cancelReadTimer();
         }
     }
     

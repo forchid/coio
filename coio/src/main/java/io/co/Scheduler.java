@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, little-pan, All rights reserved.
+ * Copyright (c) 2021, little-pan, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -28,21 +28,16 @@ import static io.co.util.RuntimeUtils.*;
  * @since 2019-05-13
  *
  */
-public interface Scheduler {
+public interface Scheduler extends Runnable {
     
     int INIT_CONNECTIONS = Integer.getInteger("io.co.initConnections", 1024);
     int MAX_CONNECTIONS  = Integer.getInteger("io.co.maxConnections",  102400);
     int CHILDREN_COUNT   = Integer.getInteger("io.co.scheduler.childrenCount", processors());
     String NAME          = System.getProperty("io.co.scheduler.name", "co-scheduler");
-    boolean DAEMON       = Boolean.getBoolean("io.co.scheduler.daemon");
     
     String getName();
 
     boolean isDaemon();
-    
-    void start();
-    
-    void startAndServe();
     
     boolean isStarted();
     

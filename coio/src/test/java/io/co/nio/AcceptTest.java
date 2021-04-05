@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, little-pan, All rights reserved.
+ * Copyright (c) 2021, little-pan, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,14 +16,12 @@
  */
 package io.co.nio;
 
-import com.offbynull.coroutines.user.Continuation;
-
+import com.offbynull.coroutines.user.Coroutine;
 import io.co.*;
-import io.co.util.IoUtils;
-import static io.co.util.LogUtils.*;
 import junit.framework.TestCase;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author little-pan
@@ -31,65 +29,86 @@ import java.io.IOException;
  *
  */
 public class AcceptTest extends TestCase {
+    static {
+        System.setProperty("io.co.debug", "true");
+    }
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
         new AcceptTest().testAccept();
     }
 
-    public void testAccept() throws Exception {
-        System.setProperty("io.co.debug", "true");
+    public void testAccept() {
         int port = 9960;
-        NioCoServerSocket server = new NioCoServerSocket(port, ServerHandler.class);
-        NioScheduler scheduler = server.getScheduler();
-
-        CoSocket socket = new NioCoSocket(port, new ClientHandler(), scheduler);
-        info("wait");
-        server.awaitClosed();
-        socket.close();
-
-        info("OK");
-    }
-
-    static class ClientHandler extends Connector {
-
-        private static final long serialVersionUID = 1L;
-
-        @Override
-        public void handleConnection(Continuation co, CoSocket socket) throws Exception {
-            Scheduler scheduler = socket.getScheduler();
-            try {
-                info("%s connected", socket);
-                CoOutputStream out = socket.getOutputStream();
-                out.write(co, 1);
-                out.flush(co);
-                int i = socket.getInputStream().read(co);
-                if (i != 1) throw new IOException("Echo error");
-            } finally {
-                IoUtils.close(socket);
-                scheduler.shutdown();
+        for (int i = 0; i < 10; ++i) {
+            try (CoServerSocket server = new NioCoServerSocket()) {
+                Scheduler scheduler = server.getScheduler();
+                server.bind(port);
+                int conn = 250;
+                for (int j = 0; j < conn; ++j) {
+                    startClient(port, scheduler);
+                }
+                startServer(server, conn);
+                scheduler.run();
+            } catch (IOException e) {
+                throw new AssertionError(e);
             }
         }
-
     }
 
-    static class ServerHandler extends Connector {
+    static void startServer(CoServerSocket server, int conn) {
+        Coroutine serverCo = s -> {
+            Scheduler scheduler = server.getScheduler();
+            AtomicInteger counter = new AtomicInteger();
 
-        private static final long serialVersionUID = 1L;
-
-        @Override
-        public void handleConnection(Continuation co, CoSocket socket) throws Exception {
-            try {
-                info("%s accepted", socket);
-                int i = socket.getInputStream().read(co);
-                if (i != 1) throw new IOException("Request error");
-                CoOutputStream out = socket.getOutputStream();
-                out.write(co, i);
-                out.flush(co);
-            } finally {
-                IoUtils.close(socket);
+            for (int k = 0; k < conn; ++k) {
+                CoSocket socket = server.accept(s);
+                Coroutine connCo = h -> {
+                    CoInputStream in = socket.getInputStream();
+                    int i = in.read(h);
+                    if (i != 1) throw new AssertionError("server: " + i + " neq 1");
+                    CoOutputStream out = socket.getOutputStream();
+                    out.write(h, i);
+                    out.flush(h);
+                    i++;
+                    out.write(h, i);
+                    out.flush(h);
+                    int j = in.read(h);
+                    if (i != j) throw new AssertionError("server: " + i + " neq " + j);
+                    socket.close();
+                    if (counter.addAndGet(1) == conn) {
+                        scheduler.shutdown();
+                    }
+                };
+                CoStarter.start(connCo);
             }
-        }
+            server.close();
+        };
+        CoStarter.start(serverCo);
+    }
 
+    static void startClient(int port, Scheduler scheduler) {
+        Coroutine clientCo = c -> {
+            try (CoSocket socket = new NioCoSocket(scheduler)) {
+                socket.connect(c, port);
+                int i = 1;
+                CoOutputStream out = socket.getOutputStream();
+                out.write(c, i);
+                out.flush(c);
+                CoInputStream in = socket.getInputStream();
+                int j = in.read(c);
+                if (i != j) {
+                    throw new AssertionError("client: " + i + " neq " + j);
+                }
+                j = in.read(c);
+                i++;
+                if (i != j) {
+                    throw new AssertionError("client: " + i + " neq " + j);
+                }
+                out.write(c, i);
+                out.flush(c);
+            }
+        };
+        CoStarter.start(clientCo);
     }
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, little-pan, All rights reserved.
+ * Copyright (c) 2021, little-pan, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -27,14 +27,14 @@ import java.nio.channels.Channel;
  */
 public interface CoChannel extends Channel {
 
-    int PORT_UNDEFINED  = -1;
+    int id();
 
     Scheduler getScheduler();
-
-    @Override
-    boolean isOpen();
     
     @Override
-    void close();
+    default void close() {
+        Scheduler scheduler = getScheduler();
+        scheduler.close(this);
+    }
 
 }

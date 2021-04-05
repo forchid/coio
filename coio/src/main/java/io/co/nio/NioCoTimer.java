@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, little-pan, All rights reserved.
+ * Copyright (c) 2021, little-pan, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -100,10 +100,10 @@ public class NioCoTimer implements Runnable {
             return;
         }
         
-        if(this.task == null){
-            final NioCoSocket sock = (NioCoSocket)this.source();
+        if (this.task == null) {
+            NioCoSocket socket = (NioCoSocket)this.source();
             this.next();
-            sock.getScheduler().resume(sock);
+            this.scheduler.resume(socket);
             return;
         }
         

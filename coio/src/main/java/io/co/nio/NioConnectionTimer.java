@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, little-pan, All rights reserved.
+ * Copyright (c) 2021, little-pan, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,12 +16,11 @@
  */
 package io.co.nio;
 
+import io.co.CoContext;
 import io.co.util.IoUtils;
 import static io.co.util.LogUtils.*;
 
 import java.net.SocketTimeoutException;
-
-import com.offbynull.coroutines.user.CoroutineRunner;
 
 /**
  * @author little-pan
@@ -43,9 +42,9 @@ public class NioConnectionTimer extends NioCoTimer {
         
         final NioScheduler scheduler = this.scheduler;
         final NioCoSocket source = (NioCoSocket)source();
-        final CoroutineRunner coRunner = source.coRunner();
-        
-        coRunner.setContext(new SocketTimeoutException("Connect timeout"));
+        final CoContext context = source.getContext();
+
+        context.attach(new SocketTimeoutException("Connect timeout"));
         scheduler.resume(source);
         IoUtils.close(source);
     }

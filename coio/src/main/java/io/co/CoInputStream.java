@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, little-pan, All rights reserved.
+ * Copyright (c) 2021, little-pan, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -31,17 +31,17 @@ public abstract class CoInputStream implements Closeable {
     
     protected final static int BUFFER_SIZE = Integer.getInteger("io.co.inBuffer.size", 4096);
 
-    public int available(Continuation co) throws CoIOException {
+    public int available(Continuation co) throws IOException {
         return 0;
     }
     
-    public abstract int read(Continuation co) throws CoIOException;
+    public abstract int read(Continuation co) throws IOException;
     
-    public int read(Continuation co, byte[] b) throws CoIOException {
+    public int read(Continuation co, byte[] b) throws IOException {
         return read(co, b, 0, b.length);
     }
     
-    public int read(Continuation co, byte[] b, int off, int len) throws CoIOException {
+    public int read(Continuation co, byte[] b, int off, int len) throws IOException {
         int c = read(co);
         if(c == -1) {
             return -1;
@@ -58,11 +58,11 @@ public abstract class CoInputStream implements Closeable {
         return i;
     }
     
-    public long skip(Continuation co, final long n) throws CoIOException {
+    public long skip(Continuation co, final long n) throws IOException {
         final byte[] buff = new byte[8192];
         final int len = (int)Math.min(available(co), n);
         long i = 0L;
-        for(; i < len;) {
+        while (i < len) {
             final int size = (int)Math.min(buff.length, len - i);
             final int m = read(co, buff, 0, size);
             if(m == -1) {

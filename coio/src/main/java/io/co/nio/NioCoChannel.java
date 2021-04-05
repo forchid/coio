@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, little-pan, All rights reserved.
+ * Copyright (c) 2021, little-pan, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,7 +17,6 @@
 package io.co.nio;
 
 import java.nio.channels.Channel;
-
 import com.offbynull.coroutines.user.CoroutineRunner;
 
 import io.co.CoChannel;
@@ -32,7 +31,7 @@ interface NioCoChannel<S extends Channel> extends CoChannel {
 
     int id();
 
-    NioCoChannel<S> id(int id);
+    NioCoChannel<S> id(int id) throws IllegalStateException;
 
     S channel();
 

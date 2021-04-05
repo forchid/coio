@@ -16,10 +16,11 @@
  */
 package io.co.nio;
 
+import com.offbynull.coroutines.user.Coroutine;
 import io.co.*;
 import static io.co.util.LogUtils.*;
-import com.offbynull.coroutines.user.Continuation;
-import java.util.concurrent.CountDownLatch;
+
+import java.io.IOException;
 
 /**
  * A simple CoServerSocket demo.
@@ -30,73 +31,73 @@ import java.util.concurrent.CountDownLatch;
  */
 public class EchoServer {
 
-    static final int PORT = Integer.getInteger("io.co.port", 9999);
-    static final CountDownLatch startLatch = new CountDownLatch(1);
-    static volatile Thread serverThread;
+    static volatile Scheduler scheduler;
 
-    public static void main(String[] args) throws Exception {
-        serverThread = Thread.currentThread();
-        CoServerSocket server = new NioCoServerSocket(PORT, EchoHandler.class);
-        startLatch.countDown();
-        try {
-            server.awaitClosed();
-            server.close();
-        } catch (InterruptedException e) {
-            // Ignore
-        } finally {
-            server.getScheduler().shutdown();
-            info("Bye");
+    public static void main(String[] args) {
+        int port = Integer.getInteger("io.co.port", 9999);
+
+        try (CoServerSocket server = new NioCoServerSocket()) {
+            scheduler = server.getScheduler();
+            server.bind(port);
+            startServer(server);
+            scheduler.run();
+        } catch (IOException e) {
+            throw new AssertionError(e);
         }
     }
 
-    public static void shutdown() {
-        Thread serverThread = EchoServer.serverThread;
-        if (serverThread != null) serverThread.interrupt();
+    static void startServer(CoServerSocket server) {
+        Scheduler scheduler = server.getScheduler();
+        Coroutine serverCo = s -> {
+            while (!scheduler.isShutdown()) {
+                CoSocket socket = server.accept(s);
+                handleConn(socket);
+            }
+            server.close();
+        };
+        CoStarter.start(serverCo, server);
     }
 
-    public static void await() throws InterruptedException {
-        startLatch.await();
-    }
-
-    static class EchoHandler extends Connector {
-
-        private static final long serialVersionUID = 1L;
-
-        @Override
-        public void handleConnection(Continuation co, CoSocket socket) {
-            final CoInputStream in = socket.getInputStream();
-            final CoOutputStream out = socket.getOutputStream();
-            Scheduler scheduler = socket.getScheduler();
+    static void handleConn(CoSocket socket) {
+        Scheduler scheduler = socket.getScheduler();
+        Coroutine connCo = c -> {
             try {
-                final byte[] b = new byte[512];
-                while (!scheduler.isShutdown()) {
+                String prefix = "server-" + socket.id();
+                CoInputStream in = socket.getInputStream();
+                CoOutputStream out = socket.getOutputStream();
+                byte[] b = new byte[512];
+
+                while (true) {
                     int i = 0;
                     while (i < b.length) {
-                        debug("read: offset %s", i);
-                        final int n = in.read(co, b, i, b.length - i);
-                        debug("read: bytes %s", n);
-                        if(n == -1) {
+                        debug(prefix + " read: offset %s", i);
+                        int len = b.length - i;
+                        int n = in.read(c, b, i, len);
+                        debug(prefix + " read: bytes %s", n);
+                        if (n == -1) {
                             return;
                         }
                         i += n;
                     }
-                    out.write(co, b, 0, i);
-                    out.flush(co);
-                    debug("flush: bytes %s", i);
-                    
+                    out.write(c, b, 0, i);
+                    out.flush(c);
+                    debug(prefix + " flush: bytes %s", i);
                     // Business time
-                    scheduler.await(co, 0L);
+                    scheduler.await(c, 0);
                 }
             } finally {
                 socket.close();
             }
-        }
-        
+        };
+        CoStarter.start(connCo, socket);
+    }
+
+    public static void shutdown() {
+        scheduler.shutdown();
     }
 
     static {
         System.setProperty("io.co.soTimeout", "30000");
-        System.setProperty("io.co.maxConnections", "10000");
         System.setProperty("io.co.debug", "false");
     }
 

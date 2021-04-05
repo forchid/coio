@@ -6,73 +6,73 @@ A high performance io framework based on coroutines
 ```java
 public class EchoServer {
 
-    static final int PORT = Integer.getInteger("io.co.port", 9999);
-    static final CountDownLatch startLatch = new CountDownLatch(1);
-    static volatile Thread serverThread;
+    static volatile Scheduler scheduler;
 
-    public static void main(String[] args) throws Exception {
-        serverThread = Thread.currentThread();
-        CoServerSocket server = new NioCoServerSocket(PORT, EchoHandler.class);
-        startLatch.countDown();
-        try {
-            server.awaitClosed();
-            server.close();
-        } catch (InterruptedException e) {
-            // Ignore
-        } finally {
-            server.getScheduler().shutdown();
-            info("Bye");
+    public static void main(String[] args) {
+        int port = Integer.getInteger("io.co.port", 9999);
+
+        try (CoServerSocket server = new NioCoServerSocket()) {
+            scheduler = server.getScheduler();
+            server.bind(port);
+            startServer(server);
+            scheduler.run();
+        } catch (IOException e) {
+            throw new AssertionError(e);
         }
     }
 
-    public static void shutdown() {
-        Thread serverThread = EchoServer.serverThread;
-        if (serverThread != null) serverThread.interrupt();
+    static void startServer(CoServerSocket server) {
+        Scheduler scheduler = server.getScheduler();
+        Coroutine serverCo = s -> {
+            while (!scheduler.isShutdown()) {
+                CoSocket socket = server.accept(s);
+                handleConn(socket);
+            }
+            server.close();
+        };
+        CoStarter.start(serverCo, server);
     }
 
-    public static void await() throws InterruptedException {
-        startLatch.await();
-    }
-
-    static class EchoHandler extends Connector {
-
-        private static final long serialVersionUID = 1L;
-
-        @Override
-        public void handleConnection(Continuation co, CoSocket socket) {
-            final CoInputStream in = socket.getInputStream();
-            final CoOutputStream out = socket.getOutputStream();
-            Scheduler scheduler = socket.getScheduler();
+    static void handleConn(CoSocket socket) {
+        Scheduler scheduler = socket.getScheduler();
+        Coroutine connCo = c -> {
             try {
-                final byte[] b = new byte[512];
-                while (!scheduler.isShutdown()) {
+                String prefix = "server-" + socket.id();
+                CoInputStream in = socket.getInputStream();
+                CoOutputStream out = socket.getOutputStream();
+                byte[] b = new byte[512];
+
+                while (true) {
                     int i = 0;
                     while (i < b.length) {
-                        debug("read: offset %s", i);
-                        final int n = in.read(co, b, i, b.length - i);
-                        debug("read: bytes %s", n);
-                        if(n == -1) {
+                        debug(prefix + " read: offset %s", i);
+                        int len = b.length - i;
+                        int n = in.read(c, b, i, len);
+                        debug(prefix + " read: bytes %s", n);
+                        if (n == -1) {
                             return;
                         }
                         i += n;
                     }
-                    out.write(co, b, 0, i);
-                    out.flush(co);
-                    debug("flush: bytes %s", i);
-                    
+                    out.write(c, b, 0, i);
+                    out.flush(c);
+                    debug(prefix + " flush: bytes %s", i);
                     // Business time
-                    scheduler.await(co, 0L);
+                    scheduler.await(c, 0);
                 }
             } finally {
                 socket.close();
             }
-        }
-        
+        };
+        CoStarter.start(connCo, socket);
+    }
+
+    public static void shutdown() {
+        scheduler.shutdown();
     }
 
     static {
         System.setProperty("io.co.soTimeout", "30000");
-        System.setProperty("io.co.maxConnections", "10000");
         System.setProperty("io.co.debug", "false");
     }
 
@@ -82,116 +82,57 @@ public class EchoServer {
 ```java
 public class EchoClient {
 
-    static final int PORT = Integer.getInteger("io.co.port", 9999);
+    public static void main(String[] args) {
+        System.setProperty("io.co.debug", "false");
+        int port = Integer.getInteger("io.co.port", 9999);
+        final int conns, requests;
+        if (args.length > 0) conns = Integer.decode(args[0]);
+        else conns = 1;
+        if (args.length > 1) requests = Integer.decode(args[1]);
+        else requests = 10000;
 
-    public static void main(String[] args) throws Exception {
-        System.setProperty("io.co.soTimeout", "30000");
-        final String host = System.getProperty("io.co.host", "localhost");
-        
-        final int connectionCount, schedulerCount;
-        if(args.length > 0){
-            connectionCount = Integer.parseInt(args[0]);
-        }else{
-            connectionCount = 250;
-        }
-        schedulerCount = Math.min(4, connectionCount);
-        
-        final long ts = System.currentTimeMillis();
-        
-        // Parallel scheduler
-        final NioScheduler[] schedulers = new NioScheduler[schedulerCount];
-        final AtomicInteger []remains = new AtomicInteger[schedulerCount];
-        for (int i = 0; i < schedulers.length; ++i) {
-            final String name = "nio-"+ i;
-            schedulers[i] = new NioScheduler(name, connectionCount, connectionCount, 0);
-            schedulers[i].start();
-            remains[i] = new AtomicInteger();
-        }
-        
-        final AtomicInteger successCount = new AtomicInteger();
-        try {
-            for(int i = 0; i < connectionCount; ++i){
-                final int j = i % schedulers.length;
-                final NioScheduler scheduler = schedulers[j];
-                final AtomicInteger remain = remains[j];
-                final SocketHandler connector = new EchoHandler(i, successCount, remain, scheduler);
-                new NioCoSocket(host, PORT, connector, scheduler);
-                remain.incrementAndGet();
-            }
-        } finally {
-            for(final NioScheduler s : schedulers){
-                s.awaitTermination();
-            }
-        }
-        
-        info("Bye: connectionCount = %s, successCount = %s, time = %sms",
-                connectionCount, successCount, System.currentTimeMillis() - ts);
-    }
-    
-    static class EchoHandler extends Connector {
-        private static final long serialVersionUID = 1L;
-        
-        final NioScheduler scheduler;
-        final AtomicInteger success;
-        final AtomicInteger remain;
-        final int id;
+        long ts = System.currentTimeMillis();
+        Scheduler scheduler = new NioScheduler();
+        AtomicInteger counter = new AtomicInteger(conns);
+        for (int i = 0; i < conns; ++i) {
+            CoSocket socket = new NioCoSocket(scheduler);
+            Coroutine co = c -> {
+                try {
+                    debug("%s connect to localhost:%s", socket, port);
+                    socket.connect(c, port);
+                    debug("Connected: %s", socket);
+                    CoInputStream in = socket.getInputStream();
+                    CoOutputStream out = socket.getOutputStream();
+                    byte[] b = new byte[512];
 
-        EchoHandler(int id, AtomicInteger success, AtomicInteger remain, NioScheduler scheduler){
-            this.scheduler = scheduler;
-            this.success   = success;
-            this.remain    = remain;
-            this.id = id;
-        }
+                    for (int j = 0; j < requests; ++j) {
+                        out.write(c, b);
+                        int written = b.length;
+                        out.flush(c);
 
-        @Override
-        public void handleConnection(Continuation co, CoSocket socket) throws Exception {
-            try {
-                debug("Connected: %s", socket);
-                final long ts = System.currentTimeMillis();
-                final CoInputStream in = socket.getInputStream();
-                final CoOutputStream out = socket.getOutputStream();
-                
-                final byte[] b = new byte[512];
-                final int requests = 100;
-                for(int i = 0; i < requests; ++i) {
-                    out.write(co, b);
-                    final int written = b.length;
-                    out.flush(co);
-                    
-                    int reads = 0;
-                    while (reads < written) {
-                        final int n = in.read(co, b, reads, b.length - reads);
-                        if(n == -1) {
-                            throw new EOFException();
+                        int reads = 0;
+                        while (reads < written) {
+                            int len = b.length - reads;
+                            int n = in.read(c, b, reads, len);
+                            if (n == -1) {
+                                throw new EOFException();
+                            }
+                            reads += n;
                         }
-                        reads += n;
+                    }
+                } finally {
+                    socket.close();
+                    if (counter.addAndGet(1) >= conns) {
+                        scheduler.shutdown();
                     }
                 }
-                this.success.incrementAndGet();
-                info("Client-%05d: time %dms", id, (System.currentTimeMillis() - ts));
-            } finally {
-                IoUtils.close(socket);
-            }
-            tryShutdown();
+            };
+            CoStarter.start(co, socket);
         }
 
-        void tryShutdown() {
-            this.remain.decrementAndGet();
-            // Shutdown only when all connection completed
-            if (this.remain.compareAndSet(0, 0)) {
-                this.scheduler.shutdown();
-            }
-        }
-
-        @Override
-        public void exceptionCaught(Throwable cause) {
-            try {
-                super.exceptionCaught(cause);
-            } finally {
-                tryShutdown();
-            }
-        }
-        
+        scheduler.run();
+        long te = System.currentTimeMillis();
+        info("Client: time %dms", te - ts);
     }
 
 }

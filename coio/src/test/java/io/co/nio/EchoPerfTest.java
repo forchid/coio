@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, little-pan, All rights reserved.
+ * Copyright (c) 2021, little-pan, All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,6 +19,7 @@ package io.co.nio;
 
 import junit.framework.TestCase;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class EchoPerfTest extends TestCase {
@@ -30,9 +31,14 @@ public class EchoPerfTest extends TestCase {
 
     public void testPerf() throws Exception {
         AtomicReference<Throwable> causeRef = new AtomicReference<>();
+        int conns = 3;
+        System.setProperty("io.co.initConnections", "10");
+        System.setProperty("io.co.maxConnections", (conns + 10) + "");
 
+        CountDownLatch startLatch = new CountDownLatch(1);
         Thread server = new Thread(() -> {
             try {
+                startLatch.countDown();
                 EchoServer.main(new String[]{});
             } catch (Throwable e) {
                 causeRef.set(e);
@@ -43,8 +49,8 @@ public class EchoPerfTest extends TestCase {
 
         Thread client = new Thread(() -> {
             try {
-                EchoServer.await();
-                EchoClient.main(new String[]{});
+                startLatch.await();
+                EchoClient.main(new String[]{ conns + "" });
             } catch (Throwable e) {
                 causeRef.set(e);
                 throw new AssertionError(e);

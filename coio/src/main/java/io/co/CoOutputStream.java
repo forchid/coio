@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, little-pan, All rights reserved.
+ * Copyright (c) 2021, little-pan, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,6 +17,7 @@
 package io.co;
 
 import java.io.Closeable;
+import java.io.IOException;
 
 import com.offbynull.coroutines.user.Continuation;
 
@@ -31,19 +32,19 @@ public abstract class CoOutputStream implements Closeable {
     
     protected final static int BUFFER_SIZE = Integer.getInteger("io.co.outBuffer.size", 4096);
     
-    public abstract void write(Continuation co, int b) throws CoIOException;
+    public abstract void write(Continuation co, int b) throws IOException;
     
-    public void write(Continuation co, byte[] b) throws CoIOException {
+    public void write(Continuation co, byte[] b) throws IOException {
         write(co, b, 0, b.length);
     }
     
-    public void write(Continuation co, byte[] b, int off, int len) throws CoIOException {
+    public void write(Continuation co, byte[] b, int off, int len) throws IOException {
         for(;off < len;) {
             write(co, b[off++]);
         }
     }
     
-    public abstract void flush(Continuation co) throws CoIOException;
+    public abstract void flush(Continuation co) throws IOException;
     
     @Override
     public abstract void close();
