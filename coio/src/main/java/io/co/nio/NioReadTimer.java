@@ -29,8 +29,8 @@ import static io.co.util.LogUtils.*;
  */
 public class NioReadTimer extends NioCoTimer {
     
-    public NioReadTimer(NioCoSocket source, int timeout){
-        super(source, timeout);
+    public NioReadTimer(CoContext context, NioScheduler scheduler, int timeout){
+        super(context, scheduler, timeout);
     }
     
     @Override
@@ -41,10 +41,9 @@ public class NioReadTimer extends NioCoTimer {
         }
         
         NioScheduler scheduler = this.scheduler;
-        NioCoSocket source = (NioCoSocket)source();
-        CoContext context = source.getContext();
+        CoContext context = context();
         context.attach(new SocketTimeoutException("Read timeout"));
-        scheduler.resume(source);
+        scheduler.resume(context);
     }
     
 }

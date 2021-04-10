@@ -38,7 +38,7 @@ public class EchoClient {
         int port = Integer.getInteger("io.co.port", 9999);
         final int conns, requests;
         if (args.length > 0) conns = Integer.decode(args[0]);
-        else conns = 1;
+        else conns = 100;
         if (args.length > 1) requests = Integer.decode(args[1]);
         else requests = 10000;
 
@@ -70,6 +70,8 @@ public class EchoClient {
                             }
                             reads += n;
                         }
+                        // Business time
+                        scheduler.await(c, 0);
                     }
                 } finally {
                     socket.close();

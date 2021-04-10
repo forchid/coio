@@ -127,7 +127,7 @@ public class NioCoInputStream extends CoInputStream {
                     return -1;
                 }
                 if (i == 0) {
-                    this.socket.startReadTimer();
+                    this.socket.startReadTimer(co);
                     this.socket.suspend(co);
                     this.socket.cancelReadTimer();
                     continue;

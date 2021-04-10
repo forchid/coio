@@ -31,9 +31,9 @@ public class EchoPerfTest extends TestCase {
 
     public void testPerf() throws Exception {
         AtomicReference<Throwable> causeRef = new AtomicReference<>();
-        int conns = 3;
-        System.setProperty("io.co.initConnections", "10");
-        System.setProperty("io.co.maxConnections", (conns + 10) + "");
+        int conns = 1000, requestsPerConn = 1000;
+        System.setProperty("io.co.initConnections", conns + "");
+        System.setProperty("io.co.maxConnections", (conns + 1) + "");
 
         CountDownLatch startLatch = new CountDownLatch(1);
         Thread server = new Thread(() -> {
@@ -50,7 +50,8 @@ public class EchoPerfTest extends TestCase {
         Thread client = new Thread(() -> {
             try {
                 startLatch.await();
-                EchoClient.main(new String[]{ conns + "" });
+                String[] args = { conns + "", requestsPerConn + "" };
+                EchoClient.main(args);
             } catch (Throwable e) {
                 causeRef.set(e);
                 throw new AssertionError(e);

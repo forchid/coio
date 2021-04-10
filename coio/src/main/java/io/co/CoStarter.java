@@ -28,17 +28,17 @@ public class CoStarter {
     protected final CoContext context;
 
     public CoStarter(Coroutine c) {
+        this(c, null);
+    }
+
+    public CoStarter(Coroutine c, AutoCloseable cleaner) {
         CoroutineRunner runner = new CoroutineRunner(c);
-        this.context = new CoContext(runner);
+        this.context = new CoContext(runner, cleaner);
         runner.setContext(this.context);
     }
 
     public void start() {
-        this.context.runner.execute();
-    }
-
-    public CoroutineRunner runner() {
-        return this.context.runner;
+        this.context.coRunner().execute();
     }
 
     public static CoStarter start(Coroutine c) {
@@ -47,9 +47,8 @@ public class CoStarter {
         return starter;
     }
 
-    public static CoStarter start(Coroutine c, CoChannel channel) {
-        CoStarter starter = new CoStarter(c);
-        starter.context.channel(channel);
+    public static CoStarter start(Coroutine c, AutoCloseable cleaner) {
+        CoStarter starter = new CoStarter(c, cleaner);
         starter.start();
         return starter;
     }

@@ -62,7 +62,6 @@ public class EchoServer {
         Scheduler scheduler = socket.getScheduler();
         Coroutine connCo = c -> {
             try {
-                String prefix = "server-" + socket.id();
                 CoInputStream in = socket.getInputStream();
                 CoOutputStream out = socket.getOutputStream();
                 byte[] b = new byte[512];
@@ -70,10 +69,10 @@ public class EchoServer {
                 while (true) {
                     int i = 0;
                     while (i < b.length) {
-                        debug(prefix + " read: offset %s", i);
+                        debug("read: offset %s", i);
                         int len = b.length - i;
                         int n = in.read(c, b, i, len);
-                        debug(prefix + " read: bytes %s", n);
+                        debug(" read: bytes %s", n);
                         if (n == -1) {
                             return;
                         }
@@ -81,7 +80,7 @@ public class EchoServer {
                     }
                     out.write(c, b, 0, i);
                     out.flush(c);
-                    debug(prefix + " flush: bytes %s", i);
+                    debug("flush: bytes %s", i);
                     // Business time
                     scheduler.await(c, 0);
                 }

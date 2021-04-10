@@ -17,31 +17,35 @@
 package io.co;
 
 import com.offbynull.coroutines.user.CoroutineRunner;
+import io.co.util.IoUtils;
 
-public class CoContext {
+public class CoContext implements AutoCloseable {
 
-    public final CoroutineRunner runner;
-    private CoChannel channel;
+    private final CoroutineRunner runner;
     private Object attachment;
+    private AutoCloseable cleaner;
 
     public CoContext(CoroutineRunner runner) {
-        this(runner, null);
+        this(runner, null, null);
     }
 
     public CoContext(CoroutineRunner runner, Object attachment) {
+        this(runner, attachment, null);
+    }
+
+    public CoContext(CoroutineRunner runner, AutoCloseable cleaner) {
+        this(runner, null, cleaner);
+    }
+
+    public CoContext(CoroutineRunner runner, Object attachment, AutoCloseable cleaner) {
         if (runner == null) throw new NullPointerException();
         this.runner = runner;
         this.attachment = attachment;
+        this.cleaner = cleaner;
     }
 
-    public CoChannel channel() {
-        return this.channel;
-    }
-
-    public CoChannel channel(CoChannel channel) {
-        CoChannel old = this.channel;
-        this.channel = channel;
-        return old;
+    public CoroutineRunner coRunner() {
+        return this.runner;
     }
 
     public Object attach(Object attachment) {
@@ -58,6 +62,32 @@ public class CoContext {
         Object attachment = this.attachment;
         this.attachment = null;
         return attachment;
+    }
+
+    public AutoCloseable cleaner(AutoCloseable cleaner) {
+        AutoCloseable old = this.cleaner;
+        this.cleaner = cleaner;
+        return old;
+    }
+
+    public AutoCloseable cleaner() {
+        return this.cleaner;
+    }
+
+    @Override
+    public void close() {
+        IoUtils.close(cleaner());
+        this.cleaner = null;
+    }
+
+    @Override
+    public String  toString() {
+        AutoCloseable cleaner = this.cleaner;
+        if (cleaner == null) {
+            return "<null>";
+        } else {
+            return cleaner + "";
+        }
     }
 
 }

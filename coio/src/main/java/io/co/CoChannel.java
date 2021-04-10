@@ -25,7 +25,7 @@ import java.nio.channels.Channel;
  * @since 2019-05-13
  *
  */
-public interface CoChannel extends Channel {
+public interface CoChannel extends Channel, AutoCloseable {
 
     int id();
 

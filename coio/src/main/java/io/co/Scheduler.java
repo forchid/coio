@@ -19,7 +19,6 @@ package io.co;
 import java.util.concurrent.Future;
 
 import com.offbynull.coroutines.user.Continuation;
-import static io.co.util.RuntimeUtils.*;
 
 /**
  * The coroutine scheduler.
@@ -30,10 +29,9 @@ import static io.co.util.RuntimeUtils.*;
  */
 public interface Scheduler extends Runnable {
     
-    int INIT_CONNECTIONS = Integer.getInteger("io.co.initConnections", 1024);
-    int MAX_CONNECTIONS  = Integer.getInteger("io.co.maxConnections",  102400);
-    int CHILDREN_COUNT   = Integer.getInteger("io.co.scheduler.childrenCount", processors());
-    String NAME          = System.getProperty("io.co.scheduler.name", "co-scheduler");
+    int INIT_CONNECTIONS = Integer.getInteger("io.co.initConnections",10240);
+    int MAX_CONNECTIONS  = Integer.getInteger("io.co.maxConnections", 102400);
+    String NAME          = System.getProperty("io.co.scheduler.name", "scheduler");
     
     String getName();
 

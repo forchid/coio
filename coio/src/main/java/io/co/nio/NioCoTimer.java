@@ -16,7 +16,9 @@
  */
 package io.co.nio;
 
-import io.co.CoSocket;
+import io.co.CoChannel;
+import io.co.CoContext;
+
 import static io.co.util.LogUtils.*;
 
 import java.text.DateFormat;
@@ -33,7 +35,7 @@ public class NioCoTimer implements Runnable {
     int id = -1;
     
     protected final NioScheduler scheduler;
-    protected final CoSocket source;
+    protected final CoContext context;
     protected Runnable task;
     
     protected boolean canceled;
@@ -41,24 +43,25 @@ public class NioCoTimer implements Runnable {
     protected long runat;
     protected final long period;
     
-    public NioCoTimer(NioCoSocket source, long delay){
-        this(source, null, delay,  0L);
+    public NioCoTimer(CoContext context, NioScheduler scheduler, long delay){
+        this(context, scheduler, null, delay,  0L);
     }
     
-    public NioCoTimer(NioCoSocket source, Runnable task, long delay){
-        this(source, task, delay, 0L);
+    public NioCoTimer(CoContext context, NioScheduler scheduler, Runnable task, long delay) {
+        this(context, scheduler, task, delay, 0L);
     }
     
-    public NioCoTimer(NioCoSocket source, Runnable task, long delay, long period){
+    public NioCoTimer(CoContext context, NioScheduler scheduler, Runnable task, long delay, long period) {
+        if (context == null) throw new NullPointerException();
+        this.context = context;
         this.task = task;
-        this.scheduler = source.getScheduler();
-        this.source = source;
+        this.scheduler = scheduler;
         this.runat  = System.currentTimeMillis() + delay;
         this.period = period;
     }
     
-    public CoSocket source(){
-        return this.source;
+    public CoContext context(){
+        return this.context;
     }
     
     public long runat(){
@@ -78,8 +81,18 @@ public class NioCoTimer implements Runnable {
         return true;
     }
     
-    public boolean isCanceled(){
-        return this.canceled || !this.source().isOpen();
+    public boolean isCanceled() {
+        if (this.canceled) {
+            return true;
+        }
+
+        AutoCloseable cleaner = this.context.cleaner();
+        if (cleaner instanceof CoChannel) {
+            CoChannel ch = (CoChannel)cleaner;
+            return (!ch.isOpen());
+        }
+
+        return false;
     }
     
     public void cancel() {
@@ -101,9 +114,9 @@ public class NioCoTimer implements Runnable {
         }
         
         if (this.task == null) {
-            NioCoSocket socket = (NioCoSocket)this.source();
+            CoContext context = this.context;
             this.next();
-            this.scheduler.resume(socket);
+            this.scheduler.resume(context);
             return;
         }
         
@@ -114,8 +127,8 @@ public class NioCoTimer implements Runnable {
     public String toString() {
         final DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         final String runat  = df.format(new Date(this.runat));
-        return String.format("%s[id=%s#%s, source=%s, canceled=%s, runat=%s, period=%sms]", 
-                getClass(), this.id, this.hashCode(), this.source, this.canceled, runat, this.period);
+        return String.format("%s[id=%s#%s, context=%s, canceled=%s, runat=%s, period=%sms]",
+                getClass(), this.id, this.hashCode(), this.context, this.canceled, runat, this.period);
     }
 
 }

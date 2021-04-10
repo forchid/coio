@@ -16,7 +16,6 @@
  */
 package io.co.util;
 
-import java.io.*;
 import java.nio.channels.*;
 
 /**
@@ -32,7 +31,7 @@ public final class IoUtils {
         // noop
     }
     
-    public static void close(Closeable closeable){
+    public static void close(AutoCloseable closeable){
         if(closeable != null){
             try {
                 closeable.close();

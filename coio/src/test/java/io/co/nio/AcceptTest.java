@@ -83,12 +83,13 @@ public class AcceptTest extends TestCase {
             }
             server.close();
         };
-        CoStarter.start(serverCo);
+        CoStarter.start(serverCo, server);
     }
 
     static void startClient(int port, Scheduler scheduler) {
+        CoSocket socket = new NioCoSocket(scheduler);
         Coroutine clientCo = c -> {
-            try (CoSocket socket = new NioCoSocket(scheduler)) {
+            try {
                 socket.connect(c, port);
                 int i = 1;
                 CoOutputStream out = socket.getOutputStream();
@@ -106,9 +107,11 @@ public class AcceptTest extends TestCase {
                 }
                 out.write(c, i);
                 out.flush(c);
+            } finally {
+                socket.close();
             }
         };
-        CoStarter.start(clientCo);
+        CoStarter.start(clientCo, socket);
     }
 
 }

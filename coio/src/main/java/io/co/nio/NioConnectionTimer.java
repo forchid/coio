@@ -29,8 +29,8 @@ import java.net.SocketTimeoutException;
  */
 public class NioConnectionTimer extends NioCoTimer {
     
-    public NioConnectionTimer(NioCoSocket source, int timeout){
-        super(source, timeout);
+    public NioConnectionTimer(CoContext context, NioScheduler scheduler, int timeout){
+        super(context, scheduler, timeout);
     }
     
     @Override
@@ -41,12 +41,11 @@ public class NioConnectionTimer extends NioCoTimer {
         }
         
         final NioScheduler scheduler = this.scheduler;
-        final NioCoSocket source = (NioCoSocket)source();
-        final CoContext context = source.getContext();
+        final CoContext context = context();
 
         context.attach(new SocketTimeoutException("Connect timeout"));
-        scheduler.resume(source);
-        IoUtils.close(source);
+        scheduler.resume(context);
+        IoUtils.close(context);
     }
     
 }

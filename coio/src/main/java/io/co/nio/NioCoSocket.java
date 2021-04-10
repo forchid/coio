@@ -134,7 +134,7 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
 
     @Override
     public CoroutineRunner coRunner() {
-        return this.context.runner;
+        return this.context.coRunner();
     }
 
     @Override
@@ -159,17 +159,14 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     @Override
     public void connect(Continuation co, SocketAddress endpoint, int timeout)
             throws IOException {
-
         boolean failed = true;
         try {
-            CoContext context = (CoContext)co.getContext();
-            context.channel(this);
             NioScheduler scheduler = getScheduler();
             SocketChannel ch = channel();
             scheduler.register(this);
             ch.register(scheduler.selector, SelectionKey.OP_CONNECT, this);
             ch.connect(endpoint);
-            startConnectionTimer(timeout);
+            startConnectionTimer(co, timeout);
 
             InetSocketAddress sa = (InetSocketAddress)endpoint;
             super.address = sa.getAddress();
@@ -247,10 +244,11 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
         return this.context;
     }
     
-    protected void startConnectionTimer(final int timeout) {
+    protected void startConnectionTimer(Continuation co, int timeout) {
         if(timeout > 0){
             final NioScheduler scheduler = getScheduler();
-            this.connectionTimer = new NioConnectionTimer(this, timeout);
+            CoContext context = (CoContext)co.getContext();
+            this.connectionTimer = new NioConnectionTimer(context, scheduler, timeout);
             scheduler.schedule(this.connectionTimer);
         }
     }
@@ -269,11 +267,12 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
         }
     }
 
-    protected NioReadTimer startReadTimer() {
+    protected NioReadTimer startReadTimer(Continuation co) {
         final int timeout = getSoTimeout();
         if(timeout > 0){
             final NioScheduler scheduler = getScheduler();
-            this.readTimer = new NioReadTimer(this, timeout);
+            CoContext context = (CoContext)co.getContext();
+            this.readTimer = new NioReadTimer(context, scheduler, timeout);
             scheduler.schedule(this.readTimer);
             return (NioReadTimer)this.readTimer;
         }

@@ -132,7 +132,7 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
 
     @Override
     public CoroutineRunner coRunner() {
-        return this.context.runner;
+        return this.context.coRunner();
     }
 
     @Override
@@ -155,8 +155,6 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
             throw new IllegalStateException("unbound");
         }
 
-        CoContext context = (CoContext)co.getContext();
-        context.channel(this);
         AcceptResult result = this.acceptQueue.poll();
         if (result == null) {
             result = suspend(co);
