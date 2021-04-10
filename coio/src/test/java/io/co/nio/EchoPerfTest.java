@@ -14,7 +14,6 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library.
  */
-
 package io.co.nio;
 
 import junit.framework.TestCase;

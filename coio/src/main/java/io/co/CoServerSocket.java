@@ -32,7 +32,7 @@ import com.offbynull.coroutines.user.Continuation;
  */
 public abstract class CoServerSocket implements CoChannel {
     
-    protected static final int BACKLOG_DEFAULT = 150;
+    static final int BACKLOG_DEFAULT = Integer.getInteger("io.co.backlog", 4096);
 
     protected int port;
     protected InetAddress bindAddress;
@@ -104,7 +104,7 @@ public abstract class CoServerSocket implements CoChannel {
 
     @Override
     public String toString() {
-        return "co-server";
+        return "CoServer";
     }
 
 }

@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class AcceptTest extends TestCase {
     static {
-        System.setProperty("io.co.debug", "true");
+        System.setProperty("io.co.debug", "false");
     }
 
     public static void main(String[] args) {
@@ -63,16 +63,14 @@ public class AcceptTest extends TestCase {
             for (int k = 0; k < conn; ++k) {
                 CoSocket socket = server.accept(s);
                 Coroutine connCo = h -> {
-                    CoInputStream in = socket.getInputStream();
-                    int i = in.read(h);
+                    int i = socket.read(h);
                     if (i != 1) throw new AssertionError("server: " + i + " neq 1");
-                    CoOutputStream out = socket.getOutputStream();
-                    out.write(h, i);
-                    out.flush(h);
+                    socket.write(h, i);
+                    socket.flush(h);
                     i++;
-                    out.write(h, i);
-                    out.flush(h);
-                    int j = in.read(h);
+                    socket.write(h, i);
+                    socket.flush(h);
+                    int j = socket.read(h);
                     if (i != j) throw new AssertionError("server: " + i + " neq " + j);
                     socket.close();
                     if (counter.addAndGet(1) == conn) {
@@ -92,21 +90,19 @@ public class AcceptTest extends TestCase {
             try {
                 socket.connect(c, port);
                 int i = 1;
-                CoOutputStream out = socket.getOutputStream();
-                out.write(c, i);
-                out.flush(c);
-                CoInputStream in = socket.getInputStream();
-                int j = in.read(c);
+                socket.write(c, i);
+                socket.flush(c);
+                int j = socket.read(c);
                 if (i != j) {
                     throw new AssertionError("client: " + i + " neq " + j);
                 }
-                j = in.read(c);
+                j = socket.read(c);
                 i++;
                 if (i != j) {
                     throw new AssertionError("client: " + i + " neq " + j);
                 }
-                out.write(c, i);
-                out.flush(c);
+                socket.write(c, i);
+                socket.flush(c);
             } finally {
                 socket.close();
             }

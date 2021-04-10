@@ -94,11 +94,41 @@ public abstract class CoSocket implements CoChannel {
     
     public abstract void connect(Continuation co, SocketAddress endpoint, int timeout)
             throws IOException;
+
+    public abstract int available(Continuation co) throws IOException;
+
+    public abstract int read(Continuation co) throws IOException;
+
+    public abstract int read(Continuation co, byte[] b) throws IOException;
+
+    public abstract int read(Continuation co, byte[] b, int off, int len)
+            throws IOException;
+
+    public abstract long skip(Continuation co, final long n) throws IOException;
     
     public abstract CoInputStream getInputStream();
+
+    public abstract void write(Continuation co, int b) throws IOException;
+
+    public abstract void write(Continuation co, byte[] b) throws IOException;
+
+    public abstract void write(Continuation co, byte[] b, int off, int len)
+            throws IOException;
+
+    public abstract void flush(Continuation co) throws IOException;
     
     public abstract CoOutputStream getOutputStream();
 
     public abstract boolean isConnected();
+
+    public void shutdownInput() {
+        CoInputStream in = getInputStream();
+        in.close();
+    }
+
+    public void shutdownOutput() {
+        CoOutputStream out = getOutputStream();
+        out.close();
+    }
     
 }

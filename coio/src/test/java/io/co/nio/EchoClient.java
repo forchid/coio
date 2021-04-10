@@ -38,9 +38,9 @@ public class EchoClient {
         int port = Integer.getInteger("io.co.port", 9999);
         final int conns, requests;
         if (args.length > 0) conns = Integer.decode(args[0]);
-        else conns = 100;
+        else conns = 10000;
         if (args.length > 1) requests = Integer.decode(args[1]);
-        else requests = 10000;
+        else requests = 100;
 
         long ts = System.currentTimeMillis();
         Scheduler scheduler = new NioScheduler();
@@ -52,19 +52,17 @@ public class EchoClient {
                     debug("%s connect to localhost:%s", socket, port);
                     socket.connect(c, port);
                     debug("Connected: %s", socket);
-                    CoInputStream in = socket.getInputStream();
-                    CoOutputStream out = socket.getOutputStream();
                     byte[] b = new byte[512];
 
                     for (int j = 0; j < requests; ++j) {
-                        out.write(c, b);
+                        socket.write(c, b);
                         int written = b.length;
-                        out.flush(c);
+                        socket.flush(c);
 
                         int reads = 0;
                         while (reads < written) {
                             int len = b.length - reads;
-                            int n = in.read(c, b, reads, len);
+                            int n = socket.read(c, b, reads, len);
                             if (n == -1) {
                                 throw new EOFException();
                             }

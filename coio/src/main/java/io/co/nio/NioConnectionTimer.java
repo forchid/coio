@@ -36,16 +36,14 @@ public class NioConnectionTimer extends NioCoTimer {
     @Override
     public void run() {
         debug("Running: %s", this);
-        if(this.isCanceled()){
+        if (this.isCanceled()) {
             return;
         }
         
-        final NioScheduler scheduler = this.scheduler;
-        final CoContext context = context();
-
+        NioScheduler scheduler = this.scheduler;
+        CoContext context = super.context;
         context.attach(new SocketTimeoutException("Connect timeout"));
         scheduler.resume(context);
-        IoUtils.close(context);
     }
     
 }

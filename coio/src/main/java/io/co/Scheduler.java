@@ -31,7 +31,7 @@ public interface Scheduler extends Runnable {
     
     int INIT_CONNECTIONS = Integer.getInteger("io.co.initConnections",10240);
     int MAX_CONNECTIONS  = Integer.getInteger("io.co.maxConnections", 102400);
-    String NAME          = System.getProperty("io.co.scheduler.name", "scheduler");
+    String NAME          = System.getProperty("io.co.scheduler.name", "CoScheduler");
     
     String getName();
 
@@ -39,13 +39,13 @@ public interface Scheduler extends Runnable {
     
     boolean isStarted();
     
-    void schedule(CoSocket socket, Runnable task, long delay);
+    void schedule(Runnable task, long delay) throws NullPointerException;
     
-    void schedule(CoSocket socket, Runnable task, long delay, long period);
+    void schedule(Runnable task, long delay, long period) throws NullPointerException;
     
-    Future<?> execute(Runnable task) throws CoIOException;
+    Future<?> execute(Runnable task) throws IllegalStateException;
     
-    <V> Future<V> execute(Runnable task, V value) throws CoIOException;
+    <V> Future<V> execute(Runnable task, V value) throws IllegalStateException;
     
     void await(Continuation co, long millis);
     

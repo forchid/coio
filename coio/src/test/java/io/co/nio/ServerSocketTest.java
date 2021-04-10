@@ -17,7 +17,14 @@
 
 package io.co.nio;
 
+import com.offbynull.coroutines.user.Coroutine;
+import io.co.CoSocket;
+import io.co.CoStarter;
+import io.co.util.RuntimeUtils;
+import static io.co.util.LogUtils.*;
 import junit.framework.TestCase;
+
+import java.io.IOException;
 
 public class ServerSocketTest extends TestCase {
 
@@ -30,96 +37,46 @@ public class ServerSocketTest extends TestCase {
     }
 
     public void testBind() throws Exception {
-//        NioCoServerSocket serverSocket = null;
-//        NioScheduler scheduler;
-//        InetSocketAddress sa;
-//        int port;
-//
-//        boolean linux = RuntimeUtils.isLinux();
-//        try {
-//            if (linux) {
-//                try {
-//                    port = 999;
-//                    serverSocket = new NioCoServerSocket(port, ShutdownSocketHandler.class);
-//                    serverSocket.awaitClosed();
-//                    fail("Bind should be failed for permission issue");
-//                } catch (IllegalStateException e) {
-//                    // ok
-//                }
-//            }
-//
-//            port = 19999;
-//            serverSocket = new NioCoServerSocket(port, ShutdownSocketHandler.class);
-//            scheduler = serverSocket.getScheduler();
-//            assertFalse(scheduler.isShutdown());
-//            new NioCoSocket(port, new ShutdownSocketHandler(), scheduler);
-//            serverSocket.awaitClosed();
-//            assertTrue(scheduler.isShutdown());
-//
-//            serverSocket = new NioCoServerSocket(ShutdownSocketHandler.class);
-//            scheduler = serverSocket.getScheduler();
-//            assertFalse(scheduler.isShutdown());
-//            if (linux) {
-//                try {
-//                    port = 999;
-//                    SocketAddress a = new InetSocketAddress(port);
-//                    CoServerSocket ss = serverSocket;
-//                    scheduler.execute(() -> {
-//                        Coroutine c = new Coroutine() {
-//                            @Override
-//                            public void run(Continuation co) throws Exception {
-//                                ss.bind(co, a);
-//                            }
-//                        };
-//                        CoroutineRunner runner = new CoroutineRunner(c);
-//                        runner.setContext(ss);
-//                        runner.execute();
-//                    });
-//
-//                    serverSocket.awaitClosed();
-//                    fail("Bind should be failed for permission issue");
-//                } catch (IllegalStateException e) {
-//                    // ok
-//                }
-//            }
-//            serverSocket.close();
-//            assertTrue(scheduler.isShutdown());
-//
-//            serverSocket = new NioCoServerSocket(ShutdownSocketHandler.class);
-//            scheduler = serverSocket.getScheduler();
-//            assertFalse(scheduler.isShutdown());
-//            port = 19999;
-//            final SocketAddress a = new InetSocketAddress(port);
-//            CoServerSocket ss = serverSocket;
-//            scheduler.execute(() -> {
-//                Coroutine c = new Coroutine() {
-//                    @Override
-//                    public void run(Continuation co) throws Exception {
-//                        ss.bind(co, a);
-//                    }
-//                };
-//                CoroutineRunner runner = new CoroutineRunner(c);
-//                runner.setContext(ss);
-//                runner.execute();
-//            });
-//            new NioCoSocket(port, new ShutdownSocketHandler(), scheduler);
-//            serverSocket.awaitClosed();
-//            assertTrue(scheduler.isShutdown());
-//
-//        } finally {
-//            IoUtils.close(serverSocket);
-//        }
-    }
+        boolean linux = RuntimeUtils.isLinux();
 
-//    static class ShutdownSocketHandler extends Connector {
-//
-//        @Override
-//        public void handleConnection(Continuation co, CoSocket socket) throws Exception {
-//            Scheduler scheduler = socket.getScheduler();
-//            socket.close();
-//            scheduler.shutdown();
-//        }
-//
-//    }
+        if (linux) {
+            NioCoServerSocket server = new NioCoServerSocket();
+            try {
+                int port = 999;
+                server.bind(port);
+                fail("Bind should be failed for permission issue");
+            } catch (IOException e) {
+                // ok
+                server.close();
+            }
+        }
+
+        int port = 19999;
+        NioCoServerSocket server = new NioCoServerSocket();
+        NioScheduler scheduler = server.getScheduler();
+        assertFalse(scheduler.isShutdown());
+
+        Coroutine so = c -> {
+            CoSocket socket = server.accept(c);
+            info("%s accepted", socket);
+            socket.close();
+            server.close();
+            scheduler.shutdown();
+        };
+        server.bind(port);
+        CoStarter.start(so, server);
+
+        CoSocket client = new NioCoSocket(scheduler);
+        Coroutine co = c -> {
+            client.connect(c, port);
+            info("%s connect to %s", client, port);
+            client.close();
+            server.close();
+        };
+        CoStarter.start(co, client);
+
+        scheduler.run();
+        assertTrue(scheduler.isShutdown());
+    }
 
 }

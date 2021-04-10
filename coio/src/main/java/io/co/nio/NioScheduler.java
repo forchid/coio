@@ -149,7 +149,8 @@ public class NioScheduler implements Scheduler {
                 return;
             }
             if(timerTask.id != -1) {
-                throw new IllegalStateException("timerTask id had set: " + timerTask.id);
+                String error = "timerTask id had set: " + timerTask.id;
+                throw new IllegalStateException(error);
             }
 
             final int slot = self.nextTimerSlot();
@@ -169,25 +170,23 @@ public class NioScheduler implements Scheduler {
     }
     
     @Override
-    public void schedule(CoSocket socket, Runnable task, long delay) {
-        schedule(socket, task, delay, 0L);
+    public void schedule(Runnable task, long delay) throws NullPointerException {
+        schedule(task, delay, 0);
     }
     
     @Override
-    public void schedule(CoSocket socket, Runnable task, long delay, long period) {
-        final NioCoSocket nioSocket = (NioCoSocket)socket;
-        CoContext context = nioSocket.getContext();
-        final NioCoTimer timer = new NioCoTimer(context, this, task, delay, period);
+    public void schedule(Runnable task, long delay, long period) throws NullPointerException {
+        NioCoTimer timer = new NioCoTimer(this, task, delay, period);
         schedule(timer);
     }
     
     @Override
-    public Future<?> execute(final Runnable task) throws CoIOException {
+    public Future<?> execute(final Runnable task) throws IllegalStateException {
         return execute(task, null);
     }
     
     @Override
-    public <V> Future<V> execute(Runnable task, V value) throws CoIOException {
+    public <V> Future<V> execute(Runnable task, V value) throws IllegalStateException {
         final FutureTask<V> future = new FutureTask<>(task, value);
         
         if (inScheduler()) {
@@ -203,7 +202,7 @@ public class NioScheduler implements Scheduler {
             return future;
         }
         
-        throw new CoIOException("Execution queue full");
+        throw new IllegalStateException("Task queue full");
     }
     
     @Override
@@ -505,7 +504,7 @@ public class NioScheduler implements Scheduler {
                 IoUtils.close(context);
             }
         } catch (CoroutineException e) {
-            debug("Coroutine failed: " + context, e);
+            error("Coroutine failed: " + context, e);
             IoUtils.close(context);
         }
     }

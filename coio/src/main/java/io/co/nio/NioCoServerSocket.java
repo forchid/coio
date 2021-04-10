@@ -31,8 +31,6 @@ import java.nio.channels.ServerSocketChannel;
 import java.util.LinkedList;
 import java.util.Queue;
 
-import com.offbynull.coroutines.user.CoroutineRunner;
-
 /**
  * A NIO implementation of CoServerSocket.
  * 
@@ -42,7 +40,7 @@ import com.offbynull.coroutines.user.CoroutineRunner;
  */
 public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<ServerSocketChannel> {
 
-    protected static String NAME_PREFIX = "nio-server";
+    protected static String NAME_PREFIX = "NioCoServer";
 
     protected String name = NAME_PREFIX;
     protected final ServerSocketChannel channel;
@@ -117,22 +115,16 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
     }
     
     @Override
-    public NioCoServerSocket id(int id) throws IllegalStateException {
+    public void id(int id) throws IllegalStateException {
         if(this.id >= 0){
             throw new IllegalStateException("id had been set");
         }
         this.id = id;
-        return this;
     }
 
     @Override
     public ServerSocketChannel channel(){
         return this.channel;
-    }
-
-    @Override
-    public CoroutineRunner coRunner() {
-        return this.context.coRunner();
     }
 
     @Override

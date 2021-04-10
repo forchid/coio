@@ -41,7 +41,7 @@ public class NioReadTimer extends NioCoTimer {
         }
         
         NioScheduler scheduler = this.scheduler;
-        CoContext context = context();
+        CoContext context = super.context;
         context.attach(new SocketTimeoutException("Read timeout"));
         scheduler.resume(context);
     }

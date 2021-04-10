@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, little-pan, All rights reserved.
+ * Copyright (c) 2021, little-pan, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  */
 public class EchoClient {
+
     static final int soTimeout = 30000;
     static final boolean debug = Boolean.getBoolean("io.co.debug");
 
@@ -51,7 +52,7 @@ public class EchoClient {
         if(args.length > 0){
             conns = Integer.parseInt(args[0]);
         }else{
-            conns = 250;
+            conns = 10000;
         }
         threads = Math.min(250, conns);
         
@@ -67,8 +68,8 @@ public class EchoClient {
             executors.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS);
         }
         
-        System.out.println(String.format("Bye: conns = %s, success = %s, time = %sms",
-              conns, success, System.currentTimeMillis() - ts));
+        System.out.printf("Bye: conns = %s, success = %s, time = %sms%n",
+              conns, success, System.currentTimeMillis() - ts);
     }
     
     static class Connector implements Runnable {
@@ -92,32 +93,29 @@ public class EchoClient {
                 sock.setSoTimeout(soTimeout);
                 
                 //System.out.println("Connected: " + sock);
-                final long ts = System.currentTimeMillis();
                 final BufferedInputStream in = new BufferedInputStream(sock.getInputStream());
                 final BufferedOutputStream out = new BufferedOutputStream(sock.getOutputStream());
                 
                 final byte[] b = new byte[512];
                 final int requests = 100;
                 for(int i = 0; i < requests; ++i) {
-                    final int wbytes = b.length;
+                    final int n = b.length;
                     out.write(b);
                     out.flush();
                     
-                    int rbytes = 0;
-                    for(; rbytes < wbytes;) {
-                        final int n = in.read(b, rbytes, b.length - rbytes);
-                        if(n == -1) {
+                    int m = 0;
+                    while (m < n) {
+                        int c = in.read(b, m, b.length - m);
+                        if(c == -1) {
                             throw new EOFException();
                         }
-                        rbytes += n;
+                        m += c;
                     }
-                    
-                    //System.out.println(String.format("wbytes %d, rbytes %d ", wbytes, rbytes));
+                    // Business time
+                    Thread.sleep(0L);
                 }
                 success.incrementAndGet();
-                System.out.println(String.format("Client-%05d: time %dms", 
-                     id, (System.currentTimeMillis() - ts)));
-            } catch(final IOException e){
+            } catch(Exception e) {
                 if(debug) {
                     e.printStackTrace();
                 }

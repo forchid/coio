@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, little-pan, All rights reserved.
+ * Copyright (c) 2021, little-pan, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -45,14 +45,14 @@ public class EchoServer {
         final int threads = 250;
         final ExecutorService executors = Executors.newFixedThreadPool(threads);
         try {
-            startAndServe(executors, endpoint);
+            run(executors, endpoint);
             System.out.println("Bye");
         } finally{
             executors.shutdown();
         }
     }
     
-    static void startAndServe(ExecutorService executors, SocketAddress endpoint)
+    static void run(ExecutorService executors, SocketAddress endpoint)
             throws IOException {
         final ServerSocket sSock = new ServerSocket();
         try {
@@ -88,7 +88,7 @@ public class EchoServer {
                 final byte[] b = new byte[512];
                 for(;;) {
                     int i = 0;
-                    for(; i < b.length;) {
+                    while (i < b.length) {
                         final int n = in.read(b, i, b.length-i);
                         if(n == -1) {
                             //System.out.println("Server: EOF");

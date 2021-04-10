@@ -47,21 +47,25 @@ public class NioCoTimer implements Runnable {
         this(context, scheduler, null, delay,  0L);
     }
     
-    public NioCoTimer(CoContext context, NioScheduler scheduler, Runnable task, long delay) {
+    public NioCoTimer(CoContext context, NioScheduler scheduler,
+                      Runnable task, long delay) {
         this(context, scheduler, task, delay, 0L);
     }
-    
-    public NioCoTimer(CoContext context, NioScheduler scheduler, Runnable task, long delay, long period) {
-        if (context == null) throw new NullPointerException();
-        this.context = context;
-        this.task = task;
-        this.scheduler = scheduler;
-        this.runat  = System.currentTimeMillis() + delay;
-        this.period = period;
+
+    public NioCoTimer(NioScheduler scheduler, Runnable task, long delay, long period) {
+        this(null, scheduler, task, delay, period);
     }
     
-    public CoContext context(){
-        return this.context;
+    public NioCoTimer(CoContext context, NioScheduler scheduler,
+                      Runnable task, long delay, long period) {
+        if (context == null && task == null) {
+            throw new NullPointerException();
+        }
+        this.scheduler = scheduler;
+        this.context = context;
+        this.task    = task;
+        this.runat   = System.currentTimeMillis() + delay;
+        this.period  = period;
     }
     
     public long runat(){
@@ -86,10 +90,12 @@ public class NioCoTimer implements Runnable {
             return true;
         }
 
-        AutoCloseable cleaner = this.context.cleaner();
-        if (cleaner instanceof CoChannel) {
-            CoChannel ch = (CoChannel)cleaner;
-            return (!ch.isOpen());
+        if (this.context != null) {
+            AutoCloseable cleaner = this.context.cleaner();
+            if (cleaner instanceof CoChannel) {
+                CoChannel ch = (CoChannel) cleaner;
+                return (!ch.isOpen());
+            }
         }
 
         return false;
@@ -125,8 +131,8 @@ public class NioCoTimer implements Runnable {
     }
     
     public String toString() {
-        final DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        final String runat  = df.format(new Date(this.runat));
+        DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        String runat  = df.format(new Date(this.runat));
         return String.format("%s[id=%s#%s, context=%s, canceled=%s, runat=%s, period=%sms]",
                 getClass(), this.id, this.hashCode(), this.context, this.canceled, runat, this.period);
     }

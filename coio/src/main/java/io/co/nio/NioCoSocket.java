@@ -17,7 +17,6 @@
 package io.co.nio;
 
 import com.offbynull.coroutines.user.Continuation;
-import com.offbynull.coroutines.user.CoroutineRunner;
 import io.co.*;
 import io.co.util.IoUtils;
 
@@ -41,8 +40,8 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     private final NioScheduler scheduler;
     private final boolean localScheduler;
     private final SocketChannel channel;
-    private CoInputStream in;
-    private CoOutputStream out;
+    private final CoInputStream in;
+    private final CoOutputStream out;
     private int id = -1;
     
     private NioCoTimer connectionTimer;
@@ -119,22 +118,16 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     }
     
     @Override
-    public NioCoSocket id(int id){
+    public void id(int id){
         if(this.id >= 0){
             throw new IllegalStateException("id had been set");
         }
         this.id = id;
-        return this;
     }
     
     @Override
     public SocketChannel channel(){
         return this.channel;
-    }
-
-    @Override
-    public CoroutineRunner coRunner() {
-        return this.context.coRunner();
     }
 
     @Override
@@ -181,6 +174,31 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
         }
     }
 
+    @Override
+    public int available(Continuation co) throws IOException {
+        return this.in.available(co);
+    }
+
+    @Override
+    public int read(Continuation co) throws IOException {
+        return this.in.read(co);
+    }
+
+    @Override
+    public int read(Continuation co, byte[] b) throws IOException {
+        return this.in.read(co, b);
+    }
+
+    @Override
+    public int read(Continuation co, byte[] b, int off, int len) throws IOException {
+        return this.in.read(co, b, off, len);
+    }
+
+    @Override
+    public long skip(Continuation co, long n) throws IOException {
+        return this.in.skip(co, n);
+    }
+
     protected Object suspend(Continuation co) throws IOException {
         final Object result;
 
@@ -219,7 +237,27 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     public CoInputStream getInputStream() {
         return this.in;
     }
-    
+
+    @Override
+    public void write(Continuation co, int b) throws IOException {
+        this.out.write(co, b);
+    }
+
+    @Override
+    public void write(Continuation co, byte[] b) throws IOException {
+        this.out.write(co, b);
+    }
+
+    @Override
+    public void write(Continuation co, byte[] b, int off, int len) throws IOException {
+        this.out.write(co, b, off, len);
+    }
+
+    @Override
+    public void flush(Continuation co) throws IOException {
+        this.out.flush(co);
+    }
+
     @Override
     public CoOutputStream getOutputStream() {
         return this.out;
