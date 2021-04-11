@@ -68,8 +68,7 @@ public abstract class CoServerSocket implements CoChannel {
         return !isOpen();
     }
 
-    public abstract CoSocket accept(Continuation co)
-            throws IOException, IllegalStateException;
+    public abstract CoSocket accept(Continuation co) throws IOException, IllegalStateException;
 
     public void bind(int port) throws IOException {
         bind(port, this.backlog);

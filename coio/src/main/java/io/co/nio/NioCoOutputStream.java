@@ -66,28 +66,25 @@ public class NioCoOutputStream extends CoOutputStream {
     
     public void write(Continuation co, byte[] b, int off, int len) throws IOException {
         final ByteBuffer buf = this.buffer;
-        if(buf.hasRemaining()){
+
+        if (buf.hasRemaining()) {
             final int size = Math.min(buf.remaining(), len);
             buf.put(b, off, size);
-            if(buf.hasRemaining()){
+            if (buf.hasRemaining()) {
                 return;
             }
             flush(co);
             off += size;
             len -= size;
-            if(len == 0){
-                return;
-            }
-        }else{
+        } else {
             flush(co);
         }
-        if(len == 0){
-            return;
+
+        if (len > 0) {
+            // Pass through buffer
+            ByteBuffer rem = ByteBuffer.wrap(b, off, len);
+            flush(co, rem);
         }
-        
-        // Pass through buffer
-        final ByteBuffer newBuf = ByteBuffer.wrap(b, off, len);
-        flush(co, newBuf);
     }
     
     @Override
@@ -99,12 +96,12 @@ public class NioCoOutputStream extends CoOutputStream {
     }
     
     protected void flush(Continuation co, final ByteBuffer buf) throws IOException {
-        if(!buf.hasRemaining()){
+        if (!buf.hasRemaining()) {
             return;
         }
         
-        final SocketChannel ch = this.channel;
-        final SelectionKey selKey = IoUtils.enableWrite(ch, this.selector, this.socket);
+        SocketChannel ch = this.channel;
+        SelectionKey selKey = IoUtils.enableWrite(ch, this.selector, this.socket);
         try{
             while (buf.hasRemaining()) {
                 final int n = ch.write(buf);

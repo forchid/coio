@@ -40,23 +40,15 @@ public class EchoServer {
                 byte[] b = new byte[512];
 
                 while (true) {
-                    int i = 0;
-                    while (i < b.length) {
-                        debug("read: offset %s", i);
-                        int len = b.length - i;
-                        int n = socket.read(c, b, i, len);
-                        debug(" read: bytes %s", n);
-                        if (n == -1) {
-                            return;
-                        }
-                        i += n;
-                    }
-                    socket.write(c, b, 0, i);
+                    int n = socket.readFully(c, b);
+                    socket.write(c, b, 0, n);
                     socket.flush(c);
-                    debug("flush: bytes %s", i);
+                    debug("flush: bytes %s", n);
                     // Business time
-                    scheduler.await(c, 0);
+                    scheduler.await(c, 100);
                 }
+            } catch (EOFException e) {
+                // Ignore
             } finally {
                 socket.close();
             }
@@ -102,20 +94,10 @@ public class EchoClient {
 
                     for (int j = 0; j < requests; ++j) {
                         socket.write(c, b);
-                        int written = b.length;
                         socket.flush(c);
-
-                        int reads = 0;
-                        while (reads < written) {
-                            int len = b.length - reads;
-                            int n = socket.read(c, b, reads, len);
-                            if (n == -1) {
-                                throw new EOFException();
-                            }
-                            reads += n;
-                        }
+                        socket.readFully(c, b);
                         // Business time
-                        scheduler.await(c, 0);
+                        scheduler.await(c, 1);
                     }
                 } finally {
                     socket.close();

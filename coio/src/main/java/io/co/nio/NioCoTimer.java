@@ -102,7 +102,7 @@ public class NioCoTimer implements Runnable {
     }
     
     public void cancel() {
-        if(this.isCanceled()){
+        if (this.isCanceled()) {
             return;
         }
         

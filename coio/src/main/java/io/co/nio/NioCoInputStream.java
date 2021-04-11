@@ -119,11 +119,11 @@ public class NioCoInputStream extends CoInputStream {
     
     protected int read(Continuation co, ByteBuffer buf) throws IOException {
         final SocketChannel ch = this.channel;
-        final SelectionKey selKey = IoUtils.enableRead(ch, this.selector, this.socket);
+        SelectionKey key = IoUtils.enableRead(ch, this.selector, this.socket);
         try {
-            for(;;){
+            while (true) {
                 int i = ch.read(buf);
-                if(i == -1) {
+                if (i == -1) {
                     return -1;
                 }
                 if (i == 0) {
@@ -136,7 +136,7 @@ public class NioCoInputStream extends CoInputStream {
                 // Read more
                 while (buf.hasRemaining()) {
                     i = ch.read(buf);
-                    if(i == 0 || i == -1){
+                    if (i == 0 || i == -1) {
                         break;
                     }
                     n += i;
@@ -144,7 +144,7 @@ public class NioCoInputStream extends CoInputStream {
                 return n;
             }
         } finally {
-            IoUtils.disableRead(selKey, this.selector, this.socket);
+            IoUtils.disableRead(key, this.selector, this.socket);
             this.socket.cancelReadTimer();
         }
     }

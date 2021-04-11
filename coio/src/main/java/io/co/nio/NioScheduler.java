@@ -195,8 +195,8 @@ public class NioScheduler implements Scheduler {
         }
         
         boolean ok = this.syncQueue.offer(future);
-        if(ok){
-            if(this.wakeup.compareAndSet(false, true)){
+        if (ok) {
+            if (this.wakeup.compareAndSet(false, true)) {
                 this.selector.wakeup();
             }
             return future;
@@ -242,7 +242,7 @@ public class NioScheduler implements Scheduler {
     public void shutdown() {
         Selector sel = this.selector;
         this.shutdown = true;
-        if(sel != null){
+        if (sel != null) {
             sel.wakeup();
         }
     }
@@ -269,8 +269,7 @@ public class NioScheduler implements Scheduler {
     }
 
     NioScheduler register(final NioCoChannel<?> channel)
-            throws CoIOException, IllegalStateException {
-
+            throws IOException, IllegalStateException {
         final int slot = nextChanSlot();
         channel.id(slot);
         
@@ -292,7 +291,7 @@ public class NioScheduler implements Scheduler {
         return coChan;
     }
     
-    private int nextChanSlot() throws CoIOException {
+    private int nextChanSlot() throws IOException {
         final int slot = this.freeChanSlot;
         if(slot != -1) {
             this.freeChanSlot = -1;
@@ -316,9 +315,9 @@ public class NioScheduler implements Scheduler {
         }
         
         // check limit
-        if(this.maxChanSlot >= this.maxConnections){
+        if (this.maxChanSlot >= this.maxConnections) {
             // Too many connections
-            throw new CoIOException("Too many connections: " + this.maxChanSlot);
+            throw new IOException("Too many connections: " + this.maxChanSlot);
         }
         
         // expand
@@ -357,6 +356,7 @@ public class NioScheduler implements Scheduler {
             throw new IllegalStateException("Scheduler started");
         }
         this.daemon = thread.isDaemon();
+        final int endless = -1;
 
         while (!tryShutdown()) {
             // Shutdown handler
@@ -364,7 +364,7 @@ public class NioScheduler implements Scheduler {
             // Do selection
             final int n = doSelect();
             if (n == 0) {
-                execSyncRunners(-1L);
+                execSyncRunners(endless);
                 continue;
             }
 
@@ -373,30 +373,33 @@ public class NioScheduler implements Scheduler {
                 try {
                     processIO();
                 } finally {
-                    execSyncRunners(-1L);
+                    execSyncRunners(endless);
                 }
             } else {
-                final long ioStart = System.nanoTime();
+                long ioStart = System.nanoTime();
                 try {
                     processIO();
                 } finally {
-                    final long ioTime = System.nanoTime() - ioStart;
-                    execSyncRunners(ioTime * (100 - ioRatio) / ioRatio);
+                    long ioTime = System.nanoTime() - ioStart;
+                    long nanos = ioTime * (100 - ioRatio) / ioRatio;
+                    execSyncRunners(nanos);
                 }
             }
         }
     }
     
     private int doSelect() throws IOError {
-        final Selector selector = this.selector;
-        final long timeout = minRunAt();
+        long timeout = minRunAt();
 
         try {
-            // Has new runner-or-timer? Or shutdown?
-            final boolean wakened = this.wakeup.compareAndSet(true, false);
-            if (wakened || (timeout == 0L && (this.maxTimerSlot > 0 || isShutdown()))) {
+            Selector selector = this.selector;
+            // Quick for new timer, runner or shutdown
+            if (timeout == 0 || this.wakeup.compareAndSet(true, false)) {
                 debug("selectNow()");
                 return selector.selectNow();
+            }
+            if (isShutdown()) {
+                timeout = Math.min(100, timeout);
             }
 
             return selector.select(timeout);
@@ -406,80 +409,90 @@ public class NioScheduler implements Scheduler {
     }
     
     private boolean tryShutdown() {
-        if(!isShutdown()){
+        if (!isShutdown()) {
             return false;
         }
         
-        final NioCoChannel<?>[] channels = this.channels;
-        int actives = 0;
-        for (final NioCoChannel<?> runChan : channels) {
-            if (runChan == null) {
+        NioCoChannel<?>[] channels = this.channels;
+        int id = -1, n = channels.length;
+        for (int i = 0; i < n; ++i) {
+            NioCoChannel<?> runChan = channels[i];
+            if (runChan == null || !runChan.isOpen()) {
                 continue;
             }
-            final Channel chan = runChan.channel();
-            if (chan instanceof ServerSocketChannel) {
+            Channel ch = runChan.channel();
+            if (ch instanceof ServerSocketChannel) {
                 IoUtils.close(runChan);
                 continue;
             }
-            ++actives;
+            id = i;
         }
-        debug("tryShutdown(): active channels %s", actives);
-        if(actives == 0){
-            this.terminate();
+
+        if (id == -1) {
+            terminate();
             // Exit normally
             return true;
+        } else {
+            debug("tryShutdown(): last active channel %s", id);
+            return false;
         }
-        return false;
     }
     
     private void processIO() {
         Set<SelectionKey> selKeys = this.selector.selectedKeys();
         final Iterator<SelectionKey> i = selKeys.iterator();
-        for(; i.hasNext(); i.remove()){
+
+        while (i.hasNext()) {
             NioCoChannel<?> coChan = null;
-            boolean failed = false;
+            boolean failed = true;
             try {
                 final SelectionKey key = i.next();
-                if(!key.isValid()){
-                    failed = true;
+                if (!key.isValid()) {
                     continue;
                 }
+
                 coChan = (NioCoChannel<?>)key.attachment();
-                if(key.isAcceptable()){
+                if (key.isAcceptable()) {
                     doAccept(key);
+                    failed = false;
                     continue;
                 }
-                if(key.isConnectable()){
+                if (key.isConnectable()) {
                     doConnect(key);
+                    failed = false;
                     continue;
                 }
-                if(key.isReadable()){
+                if (key.isReadable()) {
                     doRead(key);
                 }
-                if(key.isValid() && key.isWritable()){
+                if (key.isValid() && key.isWritable()) {
                     doWrite(key);
                 }
-            } catch (final CoroutineException e){
-                failed = true;
-                debug("Uncaught exception in coroutine", e.getCause());
+                failed = false;
             } finally {
                 if(failed){
                     IoUtils.close(coChan);
                 }
+                i.remove();
             }
         }
     }
     
     private void execSyncRunners(final long runNanos) {
         final long deadNano = System.nanoTime() + runNanos;
-        for(;;){
-            if(runNanos > 0L && System.nanoTime() >= deadNano) {
+
+        while (true) {
+            if (runNanos > 0 && System.nanoTime() >= deadNano) {
                 return;
             }
 
             final Runnable runner = this.syncQueue.poll();
-            if(runner == null){
+            if (runner == null) {
                 return;
+            }
+            if (runner instanceof FutureTask) {
+                FutureTask<?> task = (FutureTask<?>)runner;
+                if (task.isCancelled()) continue;
             }
 
             runner.run();
@@ -565,12 +578,14 @@ public class NioScheduler implements Scheduler {
             ch.configureBlocking(false);
             ch.socket().setTcpNoDelay(true);
             socket = new NioCoSocket(ch, this);
-            register(socket);
-            result = new AcceptResult(socket);
-            failed = false;
-        } catch (CoIOException cause) {
-            debug("Register socket error", cause);
-            return;
+            try {
+                register(socket);
+                result = new AcceptResult(socket);
+                failed = false;
+            } catch (IOException cause) {
+                debug("Register socket error", cause);
+                return;
+            }
         } catch (IOException cause) {
             debug("Accept socket error", cause);
             result = new AcceptResult(cause);
@@ -633,11 +648,10 @@ public class NioScheduler implements Scheduler {
 
     protected long minRunAt() {
         List<NioCoTimer> runTimers = new ArrayList<>();
-
         long min = minRunAt(runTimers);
-        this.timersChanged = false;
         // recycle timer slot
         recycleTimerSlots();
+        this.timersChanged = false;
         // Execute timer
         runTimers.forEach(this::runTimer);
 
@@ -674,7 +688,11 @@ public class NioScheduler implements Scheduler {
                 continue;
             }
             final long runAt = timer.runat();
-            if (runAt <= cur && runTimers != null) {
+            if (runAt <= cur) {
+                if (runTimers == null) {
+                    min = cur;
+                    continue;
+                }
                 int j = runTimers.size();
                 if (j == 0) {
                     runTimers.add(timer);
@@ -696,19 +714,17 @@ public class NioScheduler implements Scheduler {
             }
         }
 
-        return  (Math.max(0, min - cur));
+        return  (min - cur);
     }
     
-    boolean cancel(final NioCoTimer coTimer) {
+    void cancel(final NioCoTimer coTimer) {
         final NioCoTimer[] timers = this.timers;
         final int slot = coTimer.id;
         final NioCoTimer timer = timers[slot];
-        if(timer != coTimer){
-            return false;
+
+        if (timer == coTimer) {
+            recycleTimer(slot);
         }
-        
-        recycleTimer(slot);
-        return true;
     }
     
     private void recycleTimer(final int slot){

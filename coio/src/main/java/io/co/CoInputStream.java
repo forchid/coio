@@ -17,7 +17,6 @@
 package io.co;
 
 import java.io.*;
-
 import com.offbynull.coroutines.user.Continuation;
 
 /**
@@ -43,19 +42,40 @@ public abstract class CoInputStream implements Closeable {
     
     public int read(Continuation co, byte[] b, int off, int len) throws IOException {
         int c = read(co);
-        if(c == -1) {
+        if (c == -1) {
             return -1;
         }
+
         int i = 0;
         b[off++] = (byte)c;
         ++i;
-        final int n = Math.min(len - 1, available(co));
-        for(int j = 0 ; j < n; ++j) {
+        int n = Math.min(len - 1, available(co));
+        for (int j = 0 ; j < n; ++j) {
             c = read(co);
             b[off++] = (byte)c;
             ++i;
         }
+
         return i;
+    }
+
+    public int readFully(Continuation co, byte[] b) throws IOException {
+        return readFully(co, b, 0, b.length);
+    }
+
+    public int readFully(Continuation co, byte[] b, int off, int len) throws IOException {
+        int i = off;
+
+        while (i < len) {
+            int n = read(co, b, i, len);
+            if (n == -1) {
+                throw new EOFException();
+            }
+            i += n;
+            len -= n;
+        }
+
+        return i - off;
     }
     
     public long skip(Continuation co, final long n) throws IOException {

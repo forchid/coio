@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, little-pan, All rights reserved.
+ * Copyright (c) 2021, little-pan, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,6 +20,7 @@ import com.offbynull.coroutines.user.Coroutine;
 import io.co.*;
 import static io.co.util.LogUtils.*;
 
+import java.io.EOFException;
 import java.io.IOException;
 
 /**
@@ -65,23 +66,15 @@ public class EchoServer {
                 byte[] b = new byte[512];
 
                 while (true) {
-                    int i = 0;
-                    while (i < b.length) {
-                        debug("read: offset %s", i);
-                        int len = b.length - i;
-                        int n = socket.read(c, b, i, len);
-                        debug(" read: bytes %s", n);
-                        if (n == -1) {
-                            return;
-                        }
-                        i += n;
-                    }
-                    socket.write(c, b, 0, i);
+                    int n = socket.readFully(c, b);
+                    socket.write(c, b, 0, n);
                     socket.flush(c);
-                    debug("flush: bytes %s", i);
+                    debug("flush: bytes %s", n);
                     // Business time
-                    scheduler.await(c, 0);
+                    scheduler.await(c, 100);
                 }
+            } catch (EOFException e) {
+                // Ignore
             } finally {
                 socket.close();
             }

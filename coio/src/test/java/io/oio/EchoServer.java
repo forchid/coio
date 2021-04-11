@@ -42,7 +42,7 @@ public class EchoServer {
         final String host = System.getProperty("io.co.host", "localhost");
         SocketAddress endpoint = new InetSocketAddress(host, 9999);
         
-        final int threads = 250;
+        final int threads = 1000;
         final ExecutorService executors = Executors.newFixedThreadPool(threads);
         try {
             run(executors, endpoint);
@@ -69,7 +69,7 @@ public class EchoServer {
     static class Connector implements Runnable {
         final Socket sock;
         
-        Connector(Socket sock){
+        Connector(Socket sock) {
             this.sock = sock;
         }
         
@@ -101,7 +101,7 @@ public class EchoServer {
                     out.flush();
                     
                     // Business time
-                    Thread.sleep(0L);
+                    Thread.sleep(100);
                 }
             } catch (final Exception e){
                 // ignore

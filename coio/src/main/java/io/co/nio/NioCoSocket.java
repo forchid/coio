@@ -132,7 +132,7 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
 
     @Override
     public boolean isOpen() {
-        return channel.isOpen();
+        return this.channel.isOpen();
     }
     
     @Override
@@ -192,6 +192,16 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     @Override
     public int read(Continuation co, byte[] b, int off, int len) throws IOException {
         return this.in.read(co, b, off, len);
+    }
+
+    @Override
+    public int readFully(Continuation co, byte[] b) throws IOException {
+        return this.in.readFully(co, b);
+    }
+
+    @Override
+    public int readFully(Continuation co, byte[] b, int off, int len) throws IOException {
+        return this.in.readFully(co, b, off, len);
     }
 
     @Override
@@ -299,22 +309,21 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     }
     
     protected void cancelReadTimer() {
-        if(this.readTimer != null){
+        if (this.readTimer != null) {
             this.readTimer.cancel();
             this.readTimer = null;
         }
     }
 
-    protected NioReadTimer startReadTimer(Continuation co) {
+    protected void startReadTimer(Continuation co) {
         final int timeout = getSoTimeout();
-        if(timeout > 0){
+
+        if (timeout > 0) {
             final NioScheduler scheduler = getScheduler();
             CoContext context = (CoContext)co.getContext();
             this.readTimer = new NioReadTimer(context, scheduler, timeout);
             scheduler.schedule(this.readTimer);
-            return (NioReadTimer)this.readTimer;
         }
-        return null;
     }
     
 }

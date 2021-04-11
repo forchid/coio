@@ -54,7 +54,7 @@ public class EchoClient {
         }else{
             conns = 10000;
         }
-        threads = Math.min(250, conns);
+        threads = Math.min(1000, conns);
         
         final ExecutorService executors = Executors.newFixedThreadPool(threads);
         final AtomicInteger success = new AtomicInteger();
@@ -112,7 +112,7 @@ public class EchoClient {
                         m += c;
                     }
                     // Business time
-                    Thread.sleep(0L);
+                    Thread.sleep(0);
                 }
                 success.incrementAndGet();
             } catch(Exception e) {

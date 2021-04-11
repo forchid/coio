@@ -104,6 +104,11 @@ public abstract class CoSocket implements CoChannel {
     public abstract int read(Continuation co, byte[] b, int off, int len)
             throws IOException;
 
+    public abstract int readFully(Continuation co, byte[] b) throws IOException;
+
+    public abstract int readFully(Continuation co, byte[] b, int off, int len)
+            throws IOException;
+
     public abstract long skip(Continuation co, final long n) throws IOException;
     
     public abstract CoInputStream getInputStream();

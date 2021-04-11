@@ -19,7 +19,6 @@ package io.co.nio;
 import com.offbynull.coroutines.user.Coroutine;
 import io.co.*;
 
-import java.io.EOFException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.co.util.LogUtils.*;
@@ -56,20 +55,10 @@ public class EchoClient {
 
                     for (int j = 0; j < requests; ++j) {
                         socket.write(c, b);
-                        int written = b.length;
                         socket.flush(c);
-
-                        int reads = 0;
-                        while (reads < written) {
-                            int len = b.length - reads;
-                            int n = socket.read(c, b, reads, len);
-                            if (n == -1) {
-                                throw new EOFException();
-                            }
-                            reads += n;
-                        }
+                        socket.readFully(c, b);
                         // Business time
-                        scheduler.await(c, 0);
+                        scheduler.await(c, 1);
                     }
                 } finally {
                     socket.close();
