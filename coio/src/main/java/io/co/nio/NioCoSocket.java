@@ -209,35 +209,15 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
         return this.in.skip(co, n);
     }
 
-    protected Object suspend(Continuation co) throws IOException {
-        final Object result;
-
-        beforeSuspend(co);
+    protected void suspend(Continuation co) throws IOException {
+        this.context = (CoContext) co.getContext();
         try {
             CoContext.suspend(co);
-        } finally {
-            result = afterSuspend(co);
-        }
-
-        return result;
-    }
-
-    protected void beforeSuspend(Continuation co) {
-        Scheduler scheduler = getScheduler();
-        scheduler.ensureInScheduler();
-        this.context = (CoContext) co.getContext();
-    }
-
-    protected Object afterSuspend(Continuation co) throws IOException {
-        try {
-            CoContext ctx = (CoContext) co.getContext();
-            Object attachment = ctx.detach();
+            Object attachment = this.context.detach();
 
             if (attachment instanceof IOException) {
                 throw (IOException) attachment;
             }
-
-            return attachment;
         } finally {
             this.context = null;
         }

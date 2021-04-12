@@ -206,31 +206,17 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
     }
 
     AcceptResult suspend(Continuation co) {
-        final AcceptResult result;
+        final Object result;
 
-        beforeSuspend(co);
+        this.context = (CoContext)co.getContext();
         try {
             CoContext.suspend(co);
-        } finally {
-            result = afterSuspend(co);
-        }
-
-        return result;
-    }
-
-    void beforeSuspend(Continuation co) {
-        Scheduler scheduler = getScheduler();
-        scheduler.ensureInScheduler();
-        this.context = (CoContext)co.getContext();
-    }
-
-    AcceptResult afterSuspend(Continuation co) {
-        try {
-            CoContext ctx = (CoContext)co.getContext();
-            return (AcceptResult)ctx.detach();
+            result = this.context.detach();
         } finally {
             this.context = null;
         }
+
+        return (AcceptResult)result;
     }
 
     CoContext getContext() {

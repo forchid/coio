@@ -29,9 +29,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  */
 public class AcceptTest extends TestCase {
-    static {
-        System.setProperty("io.co.debug", "false");
-    }
 
     public static void main(String[] args) {
         new AcceptTest().testAccept();
@@ -108,6 +105,10 @@ public class AcceptTest extends TestCase {
             }
         };
         CoStarter.start(clientCo, socket);
+    }
+
+    static {
+        System.setProperty("io.co.debug", "false");
     }
 
 }

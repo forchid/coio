@@ -28,7 +28,7 @@ public class CoContext implements AutoCloseable, SchedulerProvider {
 
     private final CoroutineRunner runner;
     private final Scheduler scheduler;
-    private int suspendTick;
+    private int suspendTick, lastTick;
 
     private Object attachment;
     private AutoCloseable cleaner;
@@ -109,24 +109,32 @@ public class CoContext implements AutoCloseable, SchedulerProvider {
     }
 
     public static void suspend(Continuation co) throws IllegalStateException {
-        CoContext context = (CoContext)co.getContext();
-        int tick = ++context.suspendTick;
+        CoContext ctx = (CoContext)co.getContext();
+        Scheduler scheduler = ctx.scheduler;
 
-        if (tick < 0) {
-            tick = context.suspendTick = 1;
-        }
-        co.suspend();
-        if (tick != context.suspendTick) {
+        scheduler.ensureInScheduler();
+        if (ctx.lastTick != ctx.suspendTick/*once*/) {
             throw new IllegalStateException("Coroutine suspend state corrupted");
+        }
+        final int tick = ++ctx.suspendTick;
+        co.suspend();
+        ++ctx.lastTick;
+        if (tick != ctx.suspendTick/*one*/ || ctx.lastTick != ctx.suspendTick/*once*/) {
+            throw new IllegalStateException("Coroutine state corrupted after suspend");
         }
     }
 
-    public static void resume(Continuation co) {
+    public static void resume(Continuation co) throws IllegalStateException {
         CoContext context = (CoContext)co.getContext();
         context.resume();
     }
 
-    public void resume() {
+    public void resume() throws IllegalStateException {
+        this.scheduler.ensureInScheduler();
+        if (this.lastTick + 1 != this.suspendTick/*once*/) {
+            throw new IllegalStateException("Coroutine state corrupted when resuming");
+        }
+
         try {
             CoroutineRunner coRunner = coRunner();
             if (!coRunner.execute()) {
