@@ -210,7 +210,7 @@ public class NioCoServerSocket extends CoServerSocket implements NioCoChannel<Se
 
         beforeSuspend(co);
         try {
-            co.suspend();
+            CoContext.suspend(co);
         } finally {
             result = afterSuspend(co);
         }

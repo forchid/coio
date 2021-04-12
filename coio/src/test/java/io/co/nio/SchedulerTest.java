@@ -48,7 +48,7 @@ public class SchedulerTest {
             }
             scheduler.shutdown();
         };
-        CoStarter.start(co);
+        CoStarter.start(co, scheduler);
         scheduler.run();
         long tb = System.currentTimeMillis();
         info("await(%sms) times %s, time %sms", millis, times, tb - ta);

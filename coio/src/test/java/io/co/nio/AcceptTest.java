@@ -56,8 +56,8 @@ public class AcceptTest extends TestCase {
     }
 
     static void startServer(CoServerSocket server, int conn) {
+        Scheduler scheduler = server.getScheduler();
         Coroutine serverCo = s -> {
-            Scheduler scheduler = server.getScheduler();
             AtomicInteger counter = new AtomicInteger();
 
             for (int k = 0; k < conn; ++k) {
@@ -77,7 +77,7 @@ public class AcceptTest extends TestCase {
                         scheduler.shutdown();
                     }
                 };
-                CoStarter.start(connCo);
+                CoStarter.start(connCo, socket);
             }
             server.close();
         };

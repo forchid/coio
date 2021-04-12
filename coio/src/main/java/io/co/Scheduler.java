@@ -27,7 +27,7 @@ import com.offbynull.coroutines.user.Continuation;
  * @since 2019-05-13
  *
  */
-public interface Scheduler extends Runnable {
+public interface Scheduler extends Runnable, SchedulerProvider {
     
     int INIT_CONNECTIONS = Integer.getInteger("io.co.initConnections",10240);
     int MAX_CONNECTIONS  = Integer.getInteger("io.co.maxConnections", 102400);

@@ -120,9 +120,8 @@ public class NioCoTimer implements Runnable {
         }
         
         if (this.task == null) {
-            CoContext context = this.context;
             this.next();
-            this.scheduler.resume(context);
+            this.context.resume();
             return;
         }
         

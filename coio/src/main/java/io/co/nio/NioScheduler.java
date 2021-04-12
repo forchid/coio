@@ -27,8 +27,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.offbynull.coroutines.user.Continuation;
-import com.offbynull.coroutines.user.CoroutineException;
-import com.offbynull.coroutines.user.CoroutineRunner;
 
 import io.co.*;
 import io.co.nio.NioCoServerSocket.AcceptResult;
@@ -214,7 +212,7 @@ public class NioScheduler implements Scheduler {
         CoContext context = (CoContext)co.getContext();
         NioCoTimer timer = new NioCoTimer(context, this, millis);
         schedule(timer);
-        co.suspend();
+        CoContext.suspend(co);
     }
     
     @Override
@@ -510,29 +508,16 @@ public class NioScheduler implements Scheduler {
         debug("terminated");
     }
     
-    protected void resume(CoContext context) {
-        try {
-            CoroutineRunner coRunner = context.coRunner();
-            if (!coRunner.execute()) {
-                debug("Coroutine completed then close %s", context);
-                IoUtils.close(context);
-            }
-        } catch (CoroutineException e) {
-            error("Coroutine failed: " + context, e);
-            IoUtils.close(context);
-        }
-    }
-    
     protected void doWrite(final SelectionKey key) {
         final NioCoSocket socket = (NioCoSocket)key.attachment();
         CoContext context = socket.getContext();
-        resume(context);
+        context.resume();
     }
     
     protected void doRead(final SelectionKey key) {
         final NioCoSocket socket = (NioCoSocket)key.attachment();
         CoContext context = socket.getContext();
-        resume(context);
+        context.resume();
     }
     
     protected void doConnect(final SelectionKey key) {
@@ -562,7 +547,7 @@ public class NioScheduler implements Scheduler {
             }
         }
 
-        resume(context);
+        context.resume();
     }
     
     protected void doAccept(final SelectionKey key) {
@@ -601,7 +586,7 @@ public class NioScheduler implements Scheduler {
             server.onAccept(result);
         } else {
             context.attach(result);
-            resume(context);
+            context.resume();
         }
     }
 
@@ -768,6 +753,11 @@ public class NioScheduler implements Scheduler {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    @Override
+    public Scheduler getScheduler() {
+        return this;
     }
 
     @Override

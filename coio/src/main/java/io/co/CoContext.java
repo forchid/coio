@@ -16,36 +16,54 @@
  */
 package io.co;
 
+import com.offbynull.coroutines.user.Continuation;
+import com.offbynull.coroutines.user.CoroutineException;
 import com.offbynull.coroutines.user.CoroutineRunner;
 import io.co.util.IoUtils;
 
-public class CoContext implements AutoCloseable {
+import static io.co.util.LogUtils.debug;
+import static io.co.util.LogUtils.error;
+
+public class CoContext implements AutoCloseable, SchedulerProvider {
 
     private final CoroutineRunner runner;
+    private final Scheduler scheduler;
+    private int suspendTick;
+
     private Object attachment;
     private AutoCloseable cleaner;
 
-    public CoContext(CoroutineRunner runner) {
-        this(runner, null, null);
+    public CoContext(CoroutineRunner runner, Scheduler scheduler)
+            throws NullPointerException {
+        this(runner, scheduler, null, null);
     }
 
-    public CoContext(CoroutineRunner runner, Object attachment) {
-        this(runner, attachment, null);
+    public CoContext(CoroutineRunner runner, Scheduler scheduler, Object attachment)
+            throws NullPointerException {
+        this(runner, scheduler, attachment, null);
     }
 
-    public CoContext(CoroutineRunner runner, AutoCloseable cleaner) {
-        this(runner, null, cleaner);
+    public CoContext(CoroutineRunner runner, Scheduler scheduler, AutoCloseable cleaner)
+            throws NullPointerException {
+        this(runner, scheduler, null, cleaner);
     }
 
-    public CoContext(CoroutineRunner runner, Object attachment, AutoCloseable cleaner) {
-        if (runner == null) throw new NullPointerException();
+    public CoContext(CoroutineRunner runner, Scheduler scheduler, Object attachment,
+                     AutoCloseable cleaner) throws NullPointerException {
+        if (runner == null || scheduler == null) throw new NullPointerException();
         this.runner = runner;
+        this.scheduler = scheduler;
         this.attachment = attachment;
         this.cleaner = cleaner;
     }
 
     public CoroutineRunner coRunner() {
         return this.runner;
+    }
+
+    @Override
+    public Scheduler getScheduler() {
+        return this.scheduler;
     }
 
     public Object attach(Object attachment) {
@@ -87,6 +105,37 @@ public class CoContext implements AutoCloseable {
             return "<null>";
         } else {
             return cleaner + "";
+        }
+    }
+
+    public static void suspend(Continuation co) throws IllegalStateException {
+        CoContext context = (CoContext)co.getContext();
+        int tick = ++context.suspendTick;
+
+        if (tick < 0) {
+            tick = context.suspendTick = 1;
+        }
+        co.suspend();
+        if (tick != context.suspendTick) {
+            throw new IllegalStateException("Coroutine suspend state corrupted");
+        }
+    }
+
+    public static void resume(Continuation co) {
+        CoContext context = (CoContext)co.getContext();
+        context.resume();
+    }
+
+    public void resume() {
+        try {
+            CoroutineRunner coRunner = coRunner();
+            if (!coRunner.execute()) {
+                debug("Coroutine completed then close %s", this);
+                IoUtils.close(this);
+            }
+        } catch (CoroutineException e) {
+            error("Coroutine failed: " + this, e);
+            IoUtils.close(this);
         }
     }
 

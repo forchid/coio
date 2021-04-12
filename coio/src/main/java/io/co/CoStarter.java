@@ -27,13 +27,13 @@ public class CoStarter {
 
     protected final CoContext context;
 
-    public CoStarter(Coroutine c) {
-        this(c, null);
+    public CoStarter(Coroutine c, Scheduler scheduler) {
+        this(c, scheduler, null);
     }
 
-    public CoStarter(Coroutine c, AutoCloseable cleaner) {
+    public CoStarter(Coroutine c, Scheduler scheduler, AutoCloseable cleaner) {
         CoroutineRunner runner = new CoroutineRunner(c);
-        this.context = new CoContext(runner, cleaner);
+        this.context = new CoContext(runner, scheduler, cleaner);
         runner.setContext(this.context);
     }
 
@@ -41,14 +41,18 @@ public class CoStarter {
         this.context.coRunner().execute();
     }
 
-    public static CoStarter start(Coroutine c) {
-        CoStarter starter = new CoStarter(c);
-        starter.start();
-        return starter;
+    public static CoStarter start(Coroutine c, SchedulerProvider provider) {
+        AutoCloseable cleaner = null;
+        if (provider instanceof AutoCloseable) {
+            cleaner = (AutoCloseable) provider;
+        }
+
+        return start(c, provider, cleaner);
     }
 
-    public static CoStarter start(Coroutine c, AutoCloseable cleaner) {
-        CoStarter starter = new CoStarter(c, cleaner);
+    public static CoStarter start(Coroutine c, SchedulerProvider provider,
+                                  AutoCloseable cleaner) {
+        CoStarter starter = new CoStarter(c, provider.getScheduler(), cleaner);
         starter.start();
         return starter;
     }

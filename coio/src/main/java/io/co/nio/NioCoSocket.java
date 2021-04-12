@@ -214,7 +214,7 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
 
         beforeSuspend(co);
         try {
-            co.suspend();
+            CoContext.suspend(co);
         } finally {
             result = afterSuspend(co);
         }

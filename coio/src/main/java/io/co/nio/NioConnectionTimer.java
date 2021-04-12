@@ -17,7 +17,6 @@
 package io.co.nio;
 
 import io.co.CoContext;
-import io.co.util.IoUtils;
 import static io.co.util.LogUtils.*;
 
 import java.net.SocketTimeoutException;
@@ -39,11 +38,10 @@ public class NioConnectionTimer extends NioCoTimer {
         if (this.isCanceled()) {
             return;
         }
-        
-        NioScheduler scheduler = this.scheduler;
+
         CoContext context = super.context;
         context.attach(new SocketTimeoutException("Connect timeout"));
-        scheduler.resume(context);
+        context.resume();
     }
     
 }

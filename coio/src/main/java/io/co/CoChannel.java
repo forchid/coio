@@ -25,11 +25,9 @@ import java.nio.channels.Channel;
  * @since 2019-05-13
  *
  */
-public interface CoChannel extends Channel, AutoCloseable {
-
+public interface CoChannel extends Channel, AutoCloseable, SchedulerProvider {
+    
     int id();
-
-    Scheduler getScheduler();
     
     @Override
     default void close() {
