@@ -33,7 +33,6 @@ import static io.co.util.LogUtils.*;
 public class EchoClient {
 
     public static void main(String[] args) {
-        System.setProperty("io.co.debug", "false");
         int port = Integer.getInteger("io.co.port", 9999);
         final int conns, requests;
         if (args.length > 0) conns = Integer.decode(args[0]);
@@ -73,6 +72,11 @@ public class EchoClient {
         scheduler.run();
         long te = System.currentTimeMillis();
         info("Client: time %dms", te - ts);
+    }
+
+    static {
+        System.setProperty("io.co.debug", "false");
+        System.setProperty("io.co.soTimeout", "30000");
     }
 
 }

@@ -152,9 +152,9 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     @Override
     public void connect(Continuation co, SocketAddress endpoint, int timeout)
             throws IOException {
+        NioScheduler scheduler = getScheduler();
         boolean failed = true;
         try {
-            NioScheduler scheduler = getScheduler();
             SocketChannel ch = channel();
             scheduler.register(this);
             ch.register(scheduler.selector, SelectionKey.OP_CONNECT, this);

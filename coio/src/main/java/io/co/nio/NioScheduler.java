@@ -394,7 +394,8 @@ public class NioScheduler implements Scheduler {
         try {
             Selector selector = this.selector;
             // Quick for new timer, runner or shutdown
-            if (timeout == 0 || this.wakeup.compareAndSet(true, false)) {
+            boolean wakeup = this.wakeup.compareAndSet(true, false);
+            if (wakeup || timeout == 0) {
                 debug("selectNow()");
                 return selector.selectNow();
             }
