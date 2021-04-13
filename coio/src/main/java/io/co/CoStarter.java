@@ -38,6 +38,8 @@ public class CoStarter {
     }
 
     public void start() {
+        Scheduler scheduler = this.context.getScheduler();
+        scheduler.attachCurrentThread();
         this.context.coRunner().execute();
     }
 

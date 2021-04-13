@@ -16,6 +16,8 @@
  */
 package io.co;
 
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import com.offbynull.coroutines.user.Continuation;
@@ -46,14 +48,22 @@ public interface Scheduler extends Runnable, SchedulerProvider {
     Future<?> execute(Runnable task) throws IllegalStateException;
     
     <V> Future<V> execute(Runnable task, V value) throws IllegalStateException;
+
+    void compute(Continuation co, Runnable task)
+            throws IllegalStateException, ExecutionException;
+
+    <V> V compute(Continuation co, Callable<V> task)
+            throws IllegalStateException, ExecutionException;
     
     void await(Continuation co, long millis);
+
+    void attachCurrentThread() throws IllegalStateException;
     
     boolean inScheduler();
 
     default void ensureInScheduler() throws IllegalStateException {
         if (!inScheduler()) {
-            String s = "The current thread not this scheduler";
+            String s = "The current thread not this scheduler thread";
             throw new IllegalStateException(s);
         }
     }

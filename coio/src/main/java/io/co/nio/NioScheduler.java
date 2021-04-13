@@ -19,10 +19,8 @@ package io.co.nio;
 import java.io.*;
 import java.nio.channels.*;
 import java.util.*;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.*;
+import static java.util.concurrent.CompletableFuture.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -30,6 +28,7 @@ import com.offbynull.coroutines.user.Continuation;
 
 import io.co.*;
 import io.co.nio.NioCoServerSocket.AcceptResult;
+import io.co.util.ExceptionUtils;
 import io.co.util.IoUtils;
 import static io.co.util.LogUtils.*;
 
@@ -60,7 +59,8 @@ public class NioScheduler implements Scheduler {
     private int maxTimerSlot;
     private int freeTimerSlot = -1;
     private boolean timersChanged;
-    
+
+    protected final ExecutorService executors;
     protected final Selector selector;
     protected final AtomicBoolean wakeup;
     final BlockingQueue<Runnable> syncQueue;
@@ -80,8 +80,13 @@ public class NioScheduler implements Scheduler {
     public NioScheduler(String name, int maxConnections) throws IOError {
         this(name, INIT_CONNECTIONS, maxConnections);
     }
-    
+
     public NioScheduler(String name, int initConnections, int maxConnections) throws IOError {
+        this(name, initConnections, maxConnections, ForkJoinPool.commonPool());
+    }
+    
+    public NioScheduler(String name, int initConnections, int maxConnections,
+                        ExecutorService executors) throws IOError {
         debug("%s - NioCoScheduler(): initConnections = %s, maxConnections = %s",
                 name, initConnections, maxConnections);
         if(initConnections < 0){
@@ -102,6 +107,7 @@ public class NioScheduler implements Scheduler {
         
         this.timers    = new NioCoTimer[1 << 10/* Init capacity */];
         this.syncQueue = new LinkedBlockingQueue<>();
+        this.executors = executors;
 
         try {
             this.selector = Selector.open();
@@ -140,9 +146,8 @@ public class NioScheduler implements Scheduler {
     }
     
     protected void schedule(final NioCoTimer timerTask) {
-        final NioScheduler self = this;
-
-        execute(() -> {
+        NioScheduler self = this;
+        Future<?> future = execute(() -> {
             if(timerTask.isCanceled()) {
                 return;
             }
@@ -165,8 +170,20 @@ public class NioScheduler implements Scheduler {
             self.timers[slot] = timerTask;
             this.timersChanged= true;
         });
+
+        handleFuture(future);
     }
-    
+
+    static void handleFuture(Future<?> future) throws RuntimeException {
+        try {
+            future.get();
+        } catch (InterruptedException e) {
+            // Ignore
+        } catch (ExecutionException e) {
+            throw ExceptionUtils.runtime(e);
+        }
+    }
+
     @Override
     public void schedule(Runnable task, long delay) throws NullPointerException {
         schedule(task, delay, 0);
@@ -202,7 +219,41 @@ public class NioScheduler implements Scheduler {
         
         throw new IllegalStateException("Task queue full");
     }
-    
+
+    @Override
+    public void compute(Continuation co, Runnable task)
+            throws IllegalStateException, ExecutionException {
+        compute(co, () -> { task.run(); return null; });
+    }
+
+    @Override
+    public <V> V compute(Continuation co, Callable<V> task)
+            throws IllegalStateException, ExecutionException {
+        ensureInScheduler();
+
+        CoContext context = (CoContext) co.getContext();
+        CompletableFuture<V> future = supplyAsync(() -> {
+            try {
+                return task.call();
+            } catch (Exception e) {
+                throw ExceptionUtils.runtime(e);
+            }
+        }).whenComplete((v, e) -> {
+            if (!inScheduler()) {
+                context.resume();
+            }
+        });
+
+        if (!future.isDone()) {
+            CoContext.suspend(co);
+        }
+        try {
+            return future.get();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     @Override
     public void await(Continuation co, long millis) {
         if(millis < 0L) {
@@ -214,26 +265,47 @@ public class NioScheduler implements Scheduler {
         schedule(timer);
         CoContext.suspend(co);
     }
-    
+
+    @Override
+    public void attachCurrentThread() throws IllegalStateException {
+        AtomicReference<Thread> ref = this.threadRef;
+        Thread thread = Thread.currentThread();
+        boolean result = ref.compareAndSet(null, thread);
+
+        if (result) this.daemon = thread.isDaemon();
+        else result = (ref.get() == thread);
+
+        if (!result) {
+            String error = this.name + " attached another thread yet";
+            throw new IllegalStateException(error);
+        }
+    }
+
     @Override
     public void close(final CoChannel channel) {
-        if(channel == null){
+        if (channel == null) {
             return;
         }
         
-        final NioCoChannel<?> ch = (NioCoChannel<?>)channel;
-        if(ch.id() == -1){
+        NioCoChannel<?> ch = (NioCoChannel<?>)channel;
+        if (ch.id() == -1) {
             return;
         }
         
-        execute(() -> {
-            final NioCoChannel<?> scChan = slotCoChannel(ch);
+        Future<?> future = execute(() -> {
+            if (isTerminated()) {
+                return;
+            }
+
+            NioCoChannel<?> scChan = slotCoChannel(ch);
             if(scChan != null && scChan == ch) {
-                final int slot = ch.id();
+                int slot = ch.id();
                 recycleChanSlot(slot);
                 debug("Close: %s", scChan);
             }
         });
+
+        handleFuture(future);
     }
     
     @Override
@@ -262,8 +334,8 @@ public class NioScheduler implements Scheduler {
     
     @Override
     public boolean inScheduler() {
-        final Thread thread = this.threadRef.get();
-        return (thread == Thread.currentThread() || thread == null);
+        Thread thread = Thread.currentThread();
+        return (thread == this.threadRef.get());
     }
 
     NioScheduler register(final NioCoChannel<?> channel)
@@ -281,12 +353,15 @@ public class NioScheduler implements Scheduler {
         return this;
     }
     
-    <S extends Channel> NioCoChannel<?> slotCoChannel(final NioCoChannel<S> channel){
-        final NioCoChannel<?> coChan = this.channels[channel.id()];
+    <S extends Channel> NioCoChannel<?> slotCoChannel(final NioCoChannel<S> channel) {
+        int id = channel.id();
+        NioCoChannel<?> coChan = this.channels[id];
+
         if(coChan == null || coChan != channel){
             return null;
+        } else {
+            return coChan;
         }
-        return coChan;
     }
     
     private int nextChanSlot() throws IOException {
@@ -348,12 +423,13 @@ public class NioScheduler implements Scheduler {
     }
 
     @Override
-    public void run(){
-        final Thread thread = Thread.currentThread();
-        if(!this.threadRef.compareAndSet(null, thread)) {
-            throw new IllegalStateException("Scheduler started");
+    public void run() {
+        attachCurrentThread();
+
+        if (this.isTerminated()) {
+            String error = this.name + " terminated";
+            throw new IllegalStateException(error);
         }
-        this.daemon = thread.isDaemon();
         final int endless = -1;
 
         while (!tryShutdown()) {

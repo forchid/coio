@@ -19,10 +19,13 @@ package io.co;
 import com.offbynull.coroutines.user.Continuation;
 import com.offbynull.coroutines.user.CoroutineException;
 import com.offbynull.coroutines.user.CoroutineRunner;
+import io.co.util.ExceptionUtils;
 import io.co.util.IoUtils;
 
-import static io.co.util.LogUtils.debug;
-import static io.co.util.LogUtils.error;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+
+import static io.co.util.LogUtils.*;
 
 public class CoContext implements AutoCloseable, SchedulerProvider {
 
@@ -124,27 +127,44 @@ public class CoContext implements AutoCloseable, SchedulerProvider {
         }
     }
 
+    /** Resume the suspending coroutine that represented by continuation co.
+     * @threadsafe
+     *
+     * @param co the resumed continuation
+     * @throws IllegalStateException
+     *   if the coroutine state error, or the scheduler task queue is full
+     */
     public static void resume(Continuation co) throws IllegalStateException {
         CoContext context = (CoContext)co.getContext();
         context.resume();
     }
 
+    /** Resume the coroutine that is suspending in this context.
+     * @threadsafe
+     *
+     * @throws IllegalStateException
+     *   if the coroutine state error, or the scheduler task queue is full
+     */
     public void resume() throws IllegalStateException {
-        this.scheduler.ensureInScheduler();
-        if (this.lastTick + 1 != this.suspendTick/*once*/) {
-            throw new IllegalStateException("Coroutine state corrupted when resuming");
-        }
+        Runnable resumeTask = () -> {
+            if (this.lastTick + 1 != this.suspendTick/*once*/) {
+                String error = "Coroutine state corrupted when resuming";
+                throw new IllegalStateException(error);
+            }
 
-        try {
-            CoroutineRunner coRunner = coRunner();
-            if (!coRunner.execute()) {
-                debug("Coroutine completed then close %s", this);
+            try {
+                CoroutineRunner coRunner = coRunner();
+                if (!coRunner.execute()) {
+                    debug("Coroutine completed then close %s", this);
+                    IoUtils.close(this);
+                }
+            } catch (CoroutineException e) {
+                error("Coroutine failed: " + this, e);
                 IoUtils.close(this);
             }
-        } catch (CoroutineException e) {
-            error("Coroutine failed: " + this, e);
-            IoUtils.close(this);
-        }
+        };
+
+        this.scheduler.execute(resumeTask);
     }
 
 }
