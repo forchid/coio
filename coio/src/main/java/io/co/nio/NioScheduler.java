@@ -46,6 +46,7 @@ public class NioScheduler implements Scheduler {
     protected String name;
     protected boolean daemon;
 
+    private volatile Throwable fatal;
     private volatile boolean shutdown;
     private volatile boolean terminated;
     private final AtomicReference<Thread> threadRef;
@@ -60,7 +61,7 @@ public class NioScheduler implements Scheduler {
     private int freeTimerSlot = -1;
     private boolean timersChanged;
 
-    protected final ExecutorService executors;
+    protected final Executor executor;
     protected final Selector selector;
     protected final AtomicBoolean wakeup;
     final BlockingQueue<Runnable> syncQueue;
@@ -86,7 +87,7 @@ public class NioScheduler implements Scheduler {
     }
     
     public NioScheduler(String name, int initConnections, int maxConnections,
-                        ExecutorService executors) throws IOError {
+                        Executor executor) throws IOError {
         debug("%s - NioCoScheduler(): initConnections = %s, maxConnections = %s",
                 name, initConnections, maxConnections);
         if(initConnections < 0){
@@ -107,7 +108,7 @@ public class NioScheduler implements Scheduler {
         
         this.timers    = new NioCoTimer[1 << 10/* Init capacity */];
         this.syncQueue = new LinkedBlockingQueue<>();
-        this.executors = executors;
+        this.executor  = executor;
 
         try {
             this.selector = Selector.open();
@@ -229,6 +230,18 @@ public class NioScheduler implements Scheduler {
     @Override
     public <V> V compute(Continuation co, Callable<V> task)
             throws IllegalStateException, ExecutionException {
+        return compute(co, task, this.executor);
+    }
+
+    @Override
+    public void compute(Continuation co, Runnable task, Executor executor)
+            throws IllegalStateException, ExecutionException {
+        compute(co, () -> { task.run(); return null; }, executor);
+    }
+
+    @Override
+    public <V> V compute(Continuation co, Callable<V> task, Executor executor)
+            throws IllegalStateException, ExecutionException {
         ensureInScheduler();
 
         CoContext context = (CoContext) co.getContext();
@@ -238,9 +251,13 @@ public class NioScheduler implements Scheduler {
             } catch (Exception e) {
                 throw ExceptionUtils.runtime(e);
             }
-        }).whenComplete((v, e) -> {
-            if (!inScheduler()) {
-                context.resume();
+        }, executor).whenComplete((v, e) -> {
+            try {
+                if (!inScheduler()) {
+                    context.resume();
+                }
+            } catch (Throwable fatal) {
+                handleFatal(fatal);
             }
         });
 
@@ -484,6 +501,7 @@ public class NioScheduler implements Scheduler {
     }
     
     private boolean tryShutdown() {
+        ensureNotFatal();
         if (!isShutdown()) {
             return false;
         }
@@ -510,6 +528,24 @@ public class NioScheduler implements Scheduler {
         } else {
             debug("tryShutdown(): last active channel %s", id);
             return false;
+        }
+    }
+
+    protected void ensureNotFatal() throws Error {
+        Throwable fatal = this.fatal;
+        if (fatal != null) {
+            for (NioCoChannel<?> c: this.channels) {
+                IoUtils.close(c);
+            }
+            terminate();
+            throw new Error(fatal);
+        }
+    }
+
+    protected void handleFatal(Throwable fatal) {
+        this.fatal = fatal;
+        if (this.wakeup.compareAndSet(false, true)) {
+            this.selector.wakeup();
         }
     }
     
@@ -575,9 +611,10 @@ public class NioScheduler implements Scheduler {
     }
     
     protected void terminate() {
+        ensureInScheduler();
         debug("terminate..");
         IoUtils.close(this.selector);
-        this.shutdown();
+        shutdown();
         this.channels = null;
         this.timers   = null;
         this.terminated = true;

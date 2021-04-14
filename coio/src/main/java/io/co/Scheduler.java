@@ -18,6 +18,7 @@ package io.co;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 
 import com.offbynull.coroutines.user.Continuation;
@@ -49,10 +50,36 @@ public interface Scheduler extends Runnable, SchedulerProvider {
     
     <V> Future<V> execute(Runnable task, V value) throws IllegalStateException;
 
+    /** Compute the task in this scheduler executor, then wait for it to finish.
+     *
+     * @param co waiting coroutine
+     * @param task computation task
+     * @throws IllegalStateException
+     *  if current thread not the scheduler thread, or the coroutine state error
+     * @throws ExecutionException
+     *  if computing failed
+     */
     void compute(Continuation co, Runnable task)
             throws IllegalStateException, ExecutionException;
 
+    /** Compute the task in this scheduler executor, then wait the result.
+     *
+     * @param co waiting coroutine
+     * @param task computation task
+     * @param <V> result type
+     * @return computation result
+     * @throws IllegalStateException
+     *  if current thread not the scheduler thread, or the coroutine state error
+     * @throws ExecutionException
+     *  if computing failed
+     */
     <V> V compute(Continuation co, Callable<V> task)
+            throws IllegalStateException, ExecutionException;
+
+    void compute(Continuation co, Runnable task, Executor executor)
+            throws IllegalStateException, ExecutionException;
+
+    <V> V compute(Continuation co, Callable<V> task, Executor executor)
             throws IllegalStateException, ExecutionException;
     
     void await(Continuation co, long millis);
