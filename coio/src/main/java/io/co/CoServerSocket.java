@@ -33,45 +33,27 @@ import com.offbynull.coroutines.user.Continuation;
 public abstract class CoServerSocket implements CoChannel {
     
     static final int BACKLOG_DEFAULT = Integer.getInteger("io.co.backlog", 4096);
-
-    protected int port;
-    protected InetAddress bindAddress;
-    protected int backlog = BACKLOG_DEFAULT;
-    protected volatile boolean bound;
     
     protected CoServerSocket() {
 
     }
 
-    public int getPort() {
-        return port;
-    }
+    public abstract int getBacklog();
 
-    public InetAddress getBindAddress() {
-        return bindAddress;
-    }
-
-    public int getBacklog() {
-        return backlog;
-    }
-
-    public boolean isBound() {
-        return this.bound;
-    }
-
-    public abstract SocketAddress getLocalAddress() throws CoIOException;
+    public abstract boolean isBound();
 
     @Override
     public abstract boolean isOpen();
 
     public boolean isClosed() {
-        return !isOpen();
+        return isBound() && !isOpen();
     }
 
-    public abstract CoSocket accept(Continuation co) throws IOException, IllegalStateException;
+    public abstract CoSocket accept(Continuation co)
+            throws IOException, IllegalStateException;
 
     public void bind(int port) throws IOException {
-        bind(port, this.backlog);
+        bind(port, BACKLOG_DEFAULT);
     }
 
     public void bind(int port, int backlog) throws IOException {
@@ -80,7 +62,7 @@ public abstract class CoServerSocket implements CoChannel {
     }
 
     public void bind(String host, int port) throws IOException {
-        bind(host, port, this.backlog);
+        bind(host, port, BACKLOG_DEFAULT);
     }
 
     public void bind(String host, int port, int backlog) throws IOException {
@@ -89,7 +71,7 @@ public abstract class CoServerSocket implements CoChannel {
     }
     
     public void bind(SocketAddress endpoint) throws IOException {
-        bind(endpoint, this.backlog);
+        bind(endpoint, BACKLOG_DEFAULT);
     }
     
     public abstract void bind(SocketAddress endpoint, int backlog)
@@ -99,7 +81,7 @@ public abstract class CoServerSocket implements CoChannel {
     
     public abstract int getLocalPort();
     
-    public abstract SocketAddress getLocalSocketAddress() throws IOException;
+    public abstract SocketAddress getLocalSocketAddress();
 
     @Override
     public String toString() {
