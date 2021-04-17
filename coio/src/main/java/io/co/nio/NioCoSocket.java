@@ -22,7 +22,7 @@ import io.co.util.IoUtils;
 
 import java.io.IOError;
 import java.io.IOException;
-import java.net.InetSocketAddress;
+import java.net.InetAddress;
 import java.net.SocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -39,6 +39,7 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
 
     private final NioScheduler scheduler;
     private final boolean localScheduler;
+
     private final SocketChannel channel;
     private final CoInputStream in;
     private final CoOutputStream out;
@@ -52,34 +53,24 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
         this(new NioScheduler(), true);
     }
 
-    public NioCoSocket(SocketChannel channel) {
-        this(channel, new NioScheduler(), true);
-    }
-
-    public NioCoSocket(Scheduler scheduler) throws IOError {
+    public NioCoSocket(Scheduler scheduler) {
         this(scheduler, false);
     }
 
     protected NioCoSocket(Scheduler scheduler, boolean localScheduler) throws IOError {
-        NioScheduler nioScheduler = (NioScheduler)scheduler;
-        final Selector selector = nioScheduler.selector;
+        this.scheduler = (NioScheduler)scheduler;
+        this.localScheduler = localScheduler;
+
+        Selector selector = this.scheduler.selector;
         SocketChannel ch = null;
         boolean failed = true;
-
         try {
-            ch = SocketChannel.open();
-            ch.configureBlocking(false);
-            ch.socket().setTcpNoDelay(true);
+            this.channel = ch = openChannel();
             this.in = new NioCoInputStream(this, ch, selector);
             this.out = new NioCoOutputStream(this, ch, selector);
-            this.channel = ch;
-            this.scheduler = nioScheduler;
-            this.localScheduler = localScheduler;
             failed = false;
-        } catch (IOException e) {
-            throw new IOError(e);
         } finally {
-            if(failed){
+            if (failed) {
                 IoUtils.close(ch);
                 if (localScheduler) scheduler.shutdown();
             }
@@ -87,24 +78,13 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     }
 
     public NioCoSocket(SocketChannel channel, Scheduler scheduler) {
-        this(channel, scheduler, false);
-    }
-
-    protected NioCoSocket(SocketChannel channel, Scheduler scheduler, boolean localScheduler) {
         NioScheduler nioScheduler = (NioScheduler)scheduler;
-        final Selector selector = nioScheduler.selector;
-        boolean failed = true;
-
-        try {
-            this.channel = channel;
-            this.scheduler = nioScheduler;
-            this.localScheduler = localScheduler;
-            this.in = new NioCoInputStream(this, this.channel, selector);
-            this.out = new NioCoOutputStream(this, this.channel, selector);
-            failed = false;
-        } finally {
-            if (failed && localScheduler) scheduler.shutdown();
-        }
+        Selector selector = nioScheduler.selector;
+        this.channel = channel;
+        this.scheduler = nioScheduler;
+        this.localScheduler = false;
+        this.in = new NioCoInputStream(this, channel, selector);
+        this.out = new NioCoOutputStream(this, channel, selector);
     }
     
     @Override
@@ -118,58 +98,122 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     }
     
     @Override
-    public void id(int id){
+    public void id(int id) throws IllegalStateException {
         if(this.id >= 0){
-            throw new IllegalStateException("id had been set");
+            throw new IllegalStateException("id set");
         }
         this.id = id;
     }
     
     @Override
-    public SocketChannel channel(){
+    public SocketChannel channel() {
         return this.channel;
     }
 
     @Override
+    public SocketAddress getRemoteSocketAddress() {
+        SocketChannel ch = channel();
+        return ch.socket().getRemoteSocketAddress();
+    }
+
+    @Override
+    public InetAddress getInetAddress() {
+        SocketChannel ch = channel();
+        return ch.socket().getInetAddress();
+    }
+
+    @Override
+    public int getPort() {
+        SocketChannel ch = channel();
+        return ch.socket().getPort();
+    }
+
+    @Override
+    public InetAddress getLocalAddress() {
+        SocketChannel ch = channel();
+        return ch.socket().getLocalAddress();
+    }
+
+    @Override
+    public SocketAddress getLocalSocketAddress() {
+        SocketChannel ch = channel();
+        return ch.socket().getLocalSocketAddress();
+    }
+
+    @Override
+    public int getLocalPort() {
+        SocketChannel ch = channel();
+        return ch.socket().getLocalPort();
+    }
+
+    @Override
+    public boolean isBound() {
+        SocketChannel ch = channel();
+        return ch.socket().isBound();
+    }
+
+    @Override
     public boolean isOpen() {
-        return this.channel.isOpen();
+        SocketChannel ch = channel();
+        return ch.isOpen();
     }
     
     @Override
     public boolean isConnected() {
-        return this.channel.isConnected();
+        SocketChannel ch = channel();
+        return ch.isConnected();
     }
     
     @Override
     public void close() {
-        IoUtils.close(getInputStream());
-        IoUtils.close(getOutputStream());
-        IoUtils.close(this.channel);
-        super.close();
-        if (this.localScheduler) this.scheduler.shutdown();
+        try {
+            IoUtils.close(this.in);
+            IoUtils.close(this.out);
+            IoUtils.close(channel());
+            super.close();
+        } finally {
+            if (this.localScheduler) {
+                this.scheduler.shutdown();
+            }
+        }
     }
 
     @Override
     public void connect(Continuation co, SocketAddress endpoint, int timeout)
             throws IOException {
-        NioScheduler scheduler = getScheduler();
         boolean failed = true;
         try {
-            SocketChannel ch = channel();
+            NioScheduler scheduler = this.scheduler;
+            Selector selector = scheduler.selector;
             scheduler.register(this);
-            ch.register(scheduler.selector, SelectionKey.OP_CONNECT, this);
+            SocketChannel ch = channel();
+            ch.register(selector, SelectionKey.OP_CONNECT, this);
             ch.connect(endpoint);
             startConnectionTimer(co, timeout);
-
-            InetSocketAddress sa = (InetSocketAddress)endpoint;
-            super.address = sa.getAddress();
-            super.port = sa.getPort();
             suspend(co);
-
             failed = false;
         } finally {
             if (failed) {
-                scheduler.close(this);
+                close();
+            }
+        }
+    }
+
+    static SocketChannel openChannel() throws IOError {
+        SocketChannel ch = null;
+        boolean failed = true;
+
+        try {
+            ch = SocketChannel.open();
+            ch.configureBlocking(false);
+            ch.socket().setTcpNoDelay(true);
+            failed = false;
+            return ch;
+        } catch (IOException e) {
+            throw new IOError(e);
+        } finally {
+            if(failed){
+                IoUtils.close(ch);
             }
         }
     }
@@ -190,7 +234,8 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     }
 
     @Override
-    public int read(Continuation co, byte[] b, int off, int len) throws IOException {
+    public int read(Continuation co, byte[] b, int off, int len)
+            throws IOException {
         return this.in.read(co, b, off, len);
     }
 
@@ -200,7 +245,8 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     }
 
     @Override
-    public int readFully(Continuation co, byte[] b, int off, int len) throws IOException {
+    public int readFully(Continuation co, byte[] b, int off, int len)
+            throws IOException {
         return this.in.readFully(co, b, off, len);
     }
 
@@ -255,17 +301,11 @@ public class NioCoSocket extends CoSocket implements NioCoChannel<SocketChannel>
     
     @Override
     public String toString(){
-        final String clazz =  this.getClass().getSimpleName();
-        try {
-            if(this.isOpen()) {
-                return String.format("%s[id=%d#%d, local=%s, remote=%s]",
-                        clazz, this.id, this.hashCode(), this.channel.getLocalAddress(),
-                        this.channel.getRemoteAddress());
-            }
-        } catch (final IOException e) {
-            // ignore
-        }
-        return String.format("%s[id=%d#%d]", clazz, this.id, this.hashCode());
+        String clazz =  this.getClass().getSimpleName();
+        String format= "%s[id=%d#%d, local=%s, remote=%s]";
+
+        return String.format(format, clazz, this.id, hashCode(),
+                getLocalSocketAddress(), getRemoteSocketAddress());
     }
 
     protected CoContext getContext() {

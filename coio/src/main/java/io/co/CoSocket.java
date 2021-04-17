@@ -36,9 +36,6 @@ public abstract class CoSocket implements CoChannel {
 
     private int soTimeout = SO_TIMEOUT;
 
-    protected InetAddress address;
-    protected int port;
-
     protected CoSocket() {
 
     }
@@ -54,13 +51,53 @@ public abstract class CoSocket implements CoChannel {
         this.soTimeout = soTimeout;
     }
 
-    public InetAddress getAddress() {
-        return this.address;
-    }
+    /** Returns the address of the endpoint this socket is connected to, or null
+     * if it is unconnected.
+     *
+     * @return The address of the endpoint this socket is connected to, or null
+     *  if it is not connected yet
+     */
+    public abstract SocketAddress getRemoteSocketAddress();
 
-    public int getPort() {
-        return this.port;
-    }
+    /** Returns the address to which the socket is connected.
+     *
+     * @return The remote IP address to which this socket is connected, or null
+     *  if the socket is not connected.
+     */
+    public abstract InetAddress getInetAddress();
+
+    /** Returns the remote port number to which this socket is connected.
+     *
+     * @return The remote port number to which this socket is connected, or 0
+     *  if the socket is not connected yet
+     */
+    public abstract int getPort();
+
+    /** Gets the local address to which the socket is bound.
+     *
+     * @return The local address to which the socket is bound
+     */
+    public abstract InetAddress getLocalAddress();
+
+    /** Returns the address of the endpoint this socket is bound to.
+     *
+     * @return The address of the endpoint this socket is bound to, or null
+     *  if the socket is not bound yet
+     */
+    public abstract SocketAddress getLocalSocketAddress();
+
+    /** Returns the local port number to which this socket is bound.
+     *
+     * @return The local port number to which this socket is bound or -1
+     *  if the socket is not bound yet
+     */
+    public abstract int getLocalPort();
+
+    /** Returns the binding state of the socket.
+     *
+     * @return true if the socket was successfully bound to an address
+     */
+    public abstract boolean isBound();
 
     public void connect(Continuation co, int port) throws IOException {
         SocketAddress endpoint = new InetSocketAddress(port);
