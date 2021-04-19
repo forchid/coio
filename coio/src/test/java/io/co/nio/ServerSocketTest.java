@@ -19,7 +19,6 @@ package io.co.nio;
 
 import com.offbynull.coroutines.user.Coroutine;
 import io.co.CoSocket;
-import io.co.CoStarter;
 import io.co.util.RuntimeUtils;
 import static io.co.util.LogUtils.*;
 import junit.framework.TestCase;
@@ -64,7 +63,7 @@ public class ServerSocketTest extends TestCase {
             scheduler.shutdown();
         };
         server.bind(port);
-        CoStarter.start(so, server);
+        scheduler.fork(so, server);
 
         CoSocket client = new NioCoSocket(scheduler);
         Coroutine co = c -> {
@@ -73,7 +72,7 @@ public class ServerSocketTest extends TestCase {
             client.close();
             server.close();
         };
-        CoStarter.start(co, client);
+        scheduler.fork(co, client);
 
         scheduler.run();
         assertTrue(scheduler.isShutdown());

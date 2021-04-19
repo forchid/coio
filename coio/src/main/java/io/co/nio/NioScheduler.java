@@ -26,6 +26,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.offbynull.coroutines.user.Continuation;
 
+import com.offbynull.coroutines.user.Coroutine;
+import com.offbynull.coroutines.user.CoroutineRunner;
 import io.co.*;
 import io.co.nio.NioCoServerSocket.AcceptResult;
 import io.co.util.ExceptionUtils;
@@ -338,7 +340,24 @@ public class NioScheduler implements Scheduler {
     public boolean isStarted() {
         return this.threadRef.get() != null;
     }
-    
+
+    @Override
+    public CoContext fork(Coroutine c) {
+        return fork(c, null);
+    }
+
+    @Override
+    public CoContext fork(Coroutine c, AutoCloseable cleaner) {
+        attachCurrentThread();
+
+        CoroutineRunner runner = new CoroutineRunner(c);
+        CoContext context = new CoContext(runner, this, cleaner);
+        runner.setContext(context);
+        runner.execute();
+
+        return context;
+    }
+
     @Override
     public boolean isShutdown() {
         return this.shutdown;

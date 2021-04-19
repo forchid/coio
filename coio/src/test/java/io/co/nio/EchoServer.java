@@ -56,7 +56,7 @@ public class EchoServer {
             }
             server.close();
         };
-        CoStarter.start(serverCo, server);
+        scheduler.fork(serverCo, server);
     }
 
     static void handleConn(CoSocket socket) {
@@ -79,7 +79,7 @@ public class EchoServer {
                 socket.close();
             }
         };
-        CoStarter.start(connCo, socket);
+        scheduler.fork(connCo, socket);
     }
 
     public static void shutdown() {

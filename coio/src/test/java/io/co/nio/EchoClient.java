@@ -66,7 +66,7 @@ public class EchoClient {
                     }
                 }
             };
-            CoStarter.start(co, socket);
+            scheduler.fork(co, socket);
         }
 
         scheduler.run();

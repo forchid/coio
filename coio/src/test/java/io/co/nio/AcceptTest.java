@@ -74,11 +74,11 @@ public class AcceptTest extends TestCase {
                         scheduler.shutdown();
                     }
                 };
-                CoStarter.start(connCo, socket);
+                scheduler.fork(connCo, socket);
             }
             server.close();
         };
-        CoStarter.start(serverCo, server);
+        scheduler.fork(serverCo, server);
     }
 
     static void startClient(int port, Scheduler scheduler) {
@@ -104,7 +104,7 @@ public class AcceptTest extends TestCase {
                 socket.close();
             }
         };
-        CoStarter.start(clientCo, socket);
+        scheduler.fork(clientCo, socket);
     }
 
     static {

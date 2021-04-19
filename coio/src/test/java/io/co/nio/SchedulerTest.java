@@ -17,7 +17,6 @@
 package io.co.nio;
 
 import com.offbynull.coroutines.user.Coroutine;
-import io.co.CoStarter;
 import io.co.Scheduler;
 
 import java.util.concurrent.ExecutionException;
@@ -60,7 +59,7 @@ public class SchedulerTest {
             }
             scheduler.shutdown();
         };
-        CoStarter.start(co, scheduler);
+        scheduler.fork(co);
         scheduler.run();
         long tb = System.currentTimeMillis();
         info("await(%sms) times %s, time %sms", millis, times, tb - ta);
@@ -97,7 +96,7 @@ public class SchedulerTest {
                 scheduler.shutdown();
             }
         };
-        CoStarter.start(co, scheduler);
+        scheduler.fork(co);
 
         Coroutine timer = c -> {
             int i = 0;
@@ -106,7 +105,7 @@ public class SchedulerTest {
                 scheduler.await(c, 1000);
             }
         };
-        CoStarter.start(timer, scheduler);
+        scheduler.fork(timer);
 
         scheduler.run();
     }

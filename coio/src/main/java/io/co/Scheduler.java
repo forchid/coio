@@ -22,6 +22,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 
 import com.offbynull.coroutines.user.Continuation;
+import com.offbynull.coroutines.user.Coroutine;
 
 /**
  * The coroutine scheduler.
@@ -41,6 +42,10 @@ public interface Scheduler extends Runnable, SchedulerProvider {
     boolean isDaemon();
     
     boolean isStarted();
+
+    CoContext fork(Coroutine c);
+
+    CoContext fork(Coroutine c, AutoCloseable cleaner);
     
     void schedule(Runnable task, long delay) throws NullPointerException;
     
