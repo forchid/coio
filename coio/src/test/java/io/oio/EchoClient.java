@@ -21,7 +21,6 @@ import io.co.util.IoUtils;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.EOFException;
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
@@ -31,7 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * A simple Socket demo.
+ * A oio echo client demo.
  * 
  * @author little-pan
  * @since 2019-05-16
@@ -112,7 +111,7 @@ public class EchoClient {
                         m += c;
                     }
                     // Business time
-                    Thread.sleep(0);
+                    Thread.sleep(1);
                 }
                 success.incrementAndGet();
             } catch(Exception e) {

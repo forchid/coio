@@ -23,31 +23,27 @@ import java.util.concurrent.TimeUnit;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.EventLoopGroup;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.util.concurrent.EventExecutor;
 
 /**
- * A simple CoServerSocket demo.
+ * A netty echo server demo.
  * 
  * @author little-pan
  * @since 2019-05-13
  *
  */
 public class EchoServer {
-    static final int soTimeout = 30000;
+    //static final int soTimeout = 30000;
 
     public static void main(String[] args) throws Exception {
         final String host = System.getProperty("io.co.host", "localhost");
         SocketAddress endpoint = new InetSocketAddress(host, 9999);
         
-        final int threads = 4;
+        final int threads = 1;
         final ServerBootstrap boot = new ServerBootstrap();
         final EventLoopGroup group = new NioEventLoopGroup(1);
         final EventLoopGroup child = new NioEventLoopGroup(threads);
@@ -59,13 +55,14 @@ public class EchoServer {
                 protected void initChannel(SocketChannel ch) throws Exception {
                     ch.pipeline().addLast(new Connector());
                 }
-            });
+            })
+            .childOption(ChannelOption.AUTO_READ, false);
             
             boot.bind(endpoint);
             group.awaitTermination(Long.MAX_VALUE, TimeUnit.DAYS);
             
             System.out.println("Bye");
-        } finally{
+        } finally {
             child.shutdownGracefully();
             group.shutdownGracefully();
         }
@@ -73,6 +70,11 @@ public class EchoServer {
 
     static class Connector extends ChannelInboundHandlerAdapter {
         final byte[] b = new byte[512];
+
+        @Override
+        public void channelActive(ChannelHandlerContext ctx) {
+            ctx.read();
+        }
         
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object message) {
@@ -93,19 +95,17 @@ public class EchoServer {
             cause.printStackTrace();
             ctx.close();
         }
-        
+
         void send(final ChannelHandlerContext ctx) {
             final ByteBuf buf = Unpooled.wrappedBuffer(b);
-            ctx.writeAndFlush(buf).addListener(new ChannelFutureListener() {
-                @Override
-                public void operationComplete(ChannelFuture future) throws Exception {
-                    if(future.isSuccess()) {
-                        ctx.read();
-                        return;
-                    }
-                    ctx.close();
-                }
-            });
+            ctx.writeAndFlush(buf)
+                    .addListener((ChannelFutureListener) future -> {
+                        if(!future.isSuccess()) {
+                            ctx.close();
+                        }
+                    });
+            EventExecutor executor = ctx.executor();
+            executor.schedule((Runnable) ctx::read, 100, TimeUnit.MILLISECONDS);
         }
         
     }
